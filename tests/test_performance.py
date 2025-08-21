@@ -1,9 +1,13 @@
 """Performance benchmark tests for scrap-e."""
 
+import json
 import random
+import re
 import string
+from functools import lru_cache
 
 import pytest
+from lxml import etree
 
 from scrap_e.core.models import ExtractionRule
 from scrap_e.scrapers.web.http_scraper import HttpScraper
@@ -39,7 +43,7 @@ def generate_html(size: str = "small") -> str:
                     <h2>Article Title {i}</h2>
                     <p class="meta">Posted on 2024-{i % 12 + 1:02d}-{i % 28 + 1:02d}</p>
                     <div class="content">
-                        <p>{''.join(random.choices(string.ascii_letters + ' ', k=200))}</p>
+                        <p>{"".join(random.choices(string.ascii_letters + " ", k=200))}</p>
                     </div>
                     <div class="tags">
                         <span class="tag">tag{i % 5}</span>
@@ -52,7 +56,7 @@ def generate_html(size: str = "small") -> str:
         <head><title>Medium Test Page</title></head>
         <body>
             <header><h1>Blog Posts</h1></header>
-            <main>{''.join(items)}</main>
+            <main>{"".join(items)}</main>
             <footer>Copyright 2024</footer>
         </body>
         </html>
@@ -70,10 +74,10 @@ def generate_html(size: str = "small") -> str:
             <h1>Data Table</h1>
             <table>
                 <thead>
-                    <tr>{''.join(f'<th>Column {i}</th>' for i in range(10))}</tr>
+                    <tr>{"".join(f"<th>Column {i}</th>" for i in range(10))}</tr>
                 </thead>
                 <tbody>
-                    {''.join(rows)}
+                    {"".join(rows)}
                 </tbody>
             </table>
         </body>
@@ -157,8 +161,6 @@ def test_parser_xpath_performance(benchmark):
     html = generate_html("medium")
 
     def xpath_select():
-        from lxml import etree
-
         tree = etree.HTML(html)
         return tree.xpath("//article[@class='post-50']//p")
 
@@ -203,8 +205,8 @@ def test_link_extraction_performance(benchmark):
     html = f"""
     <html>
     <body>
-        <nav>{''.join(links[:50])}</nav>
-        <main>{''.join(links[50:])}</main>
+        <nav>{"".join(links[:50])}</nav>
+        <main>{"".join(links[50:])}</main>
     </body>
     </html>
     """
@@ -229,7 +231,7 @@ def test_image_extraction_performance(benchmark):
     <html>
     <body>
         <div class="gallery">
-            {''.join(images)}
+            {"".join(images)}
         </div>
     </body>
     </html>
@@ -337,8 +339,6 @@ def test_string_manipulation_performance(benchmark):
 @pytest.mark.benchmark(group="string")
 def test_json_parsing_performance(benchmark):
     """Benchmark JSON parsing performance."""
-    import json
-
     data = {
         "items": [
             {
@@ -368,8 +368,6 @@ def test_json_parsing_performance(benchmark):
 @pytest.mark.benchmark(group="regex")
 def test_regex_performance(benchmark):
     """Benchmark regex operations commonly used in scraping."""
-    import re
-
     html = generate_html("medium")
 
     # Common regex patterns for scraping
@@ -421,8 +419,6 @@ def test_large_data_handling(benchmark):
 @pytest.mark.benchmark(group="cache")
 def test_caching_performance(benchmark):
     """Benchmark caching operations."""
-    from functools import lru_cache
-
     call_count = 0
 
     @lru_cache(maxsize=128)
