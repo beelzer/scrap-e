@@ -1,0 +1,77 @@
+services:
+  scraper:
+    build: .
+    container_name: scrap-e
+    volumes:
+      - ./data:/data
+      - ./config:/app/config
+    environment:
+      - LOG_LEVEL=INFO
+      - CACHE_ENABLED=true
+      - REDIS_URL=redis://redis:6379/0
+    networks:
+      - scraper-network
+    depends_on:
+      - redis
+      - postgres
+
+  redis:
+    image: redis:7-alpine
+    container_name: scrap-e-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - scraper-network
+    command: redis-server --appendonly yes
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: scrap-e-postgres
+    environment:
+      POSTGRES_DB: scraper_db
+      POSTGRES_USER: scraper
+      POSTGRES_PASSWORD: scraper_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - scraper-network
+
+  mongodb:
+    image: mongo:7
+    container_name: scrap-e-mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: scraper
+      MONGO_INITDB_ROOT_PASSWORD: scraper_pass
+      MONGO_INITDB_DATABASE: scraper_db
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - scraper-network
+
+  # Browser automation container
+  browserless:
+    image: browserless/chrome:latest
+    container_name: scrap-e-browser
+    ports:
+      - "3000:3000"
+    environment:
+      - MAX_CONCURRENT_SESSIONS=10
+      - PREBOOT_CHROME=true
+      - CONNECTION_TIMEOUT=60000
+    networks:
+      - scraper-network
+
+networks:
+  scraper-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+  postgres-data:
+  mongo-data:

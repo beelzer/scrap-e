@@ -1,0 +1,114 @@
+name: 📦 Dependency Updates
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Every Monday at 6 AM UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  update-dependencies:
+    name: 🔄 Update Python Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: 📦 Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: 🔄 Update dependencies
+        run: |
+          uv pip compile pyproject.toml -o requirements.txt --upgrade
+          uv lock --upgrade
+
+      - name: 🧪 Test updated dependencies
+        run: |
+          uv pip install --system -e ".[dev]"
+          pytest tests/ --tb=short -q
+
+      - name: 🔍 Check for outdated packages
+        run: |
+          pip list --outdated --format=json > outdated.json
+          echo "## 📦 Outdated Packages" >> outdated.md
+          python -c "
+          import json
+          with open('outdated.json') as f:
+              packages = json.load(f)
+          if packages:
+              print('| Package | Current | Latest | Type |')
+              print('|---------|---------|--------|------|')
+              for p in packages:
+                  print(f\"| {p['name']} | {p['version']} | {p['latest_version']} | {p.get('latest_filetype', 'wheel')} |\")
+          else:
+              print('All packages are up to date! 🎉')
+          " >> outdated.md
+
+      - name: 📝 Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: update dependencies'
+          title: '🔄 Weekly Dependency Updates'
+          body: |
+            ## 📦 Automated Dependency Update
+
+            This PR contains the weekly dependency updates.
+
+            ### Changes
+            - Updated Python dependencies to latest versions
+            - Regenerated lock file
+
+            ### Testing
+            - ✅ All tests pass with updated dependencies
+
+            ### Review Checklist
+            - [ ] Review version changes for breaking updates
+            - [ ] Check security advisories for updated packages
+            - [ ] Verify no unexpected dependency additions
+
+            ---
+            *This PR was automatically created by the dependency update workflow*
+          branch: deps/weekly-update
+          delete-branch: true
+          labels: |
+            dependencies
+            automated
+          assignees: beelzer
+          reviewers: beelzer
+
+  dependabot-auto-merge:
+    name: 🤖 Auto-merge Dependabot PRs
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - name: 🔍 Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: ✅ Auto-approve PR
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        run: gh pr review --approve "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🔀 Auto-merge PR
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

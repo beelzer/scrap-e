@@ -1,0 +1,507 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [master, main]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [master, main]
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      debug_enabled:
+        type: boolean
+        description: 'Run the build with tmate debugging enabled'
+        required: false
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: '3.13'
+  POETRY_VERSION: '1.8.3'
+  UV_VERSION: '0.5.0'
+  NODE_VERSION: '20'
+  FORCE_COLOR: '1'
+  PIP_DISABLE_PIP_VERSION_CHECK: '1'
+  PYTHONUNBUFFERED: '1'
+
+jobs:
+  actionlint:
+    name: 🔍 Validate Workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v5
+
+      - name: 🔍 Run actionlint
+        uses: reviewdog/action-actionlint@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: github-pr-check
+          filter_mode: nofilter
+          fail_on_error: true
+
+  lint:
+    name: 🎨 Linting & Formatting
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [actionlint]
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: 📦 Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: 🔧 Install dependencies
+        run: |
+          uv pip install --system -e ".[dev]"
+
+      - name: 🎨 Run Ruff linter
+        run: |
+          ruff check src/ tests/ --output-format=github
+          ruff format src/ tests/ --check
+
+      - name: 🔍 Run isort
+        run: isort src/ tests/ --check-only --diff
+
+      - name: 🖤 Run Black formatter
+        run: black src/ tests/ --check --verbose
+
+      - name: 📊 Generate lint report
+        if: always()
+        run: |
+          ruff check src/ tests/ --output-format=json > lint-report.json || true
+          echo "## Lint Report Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "✅ Linting completed" >> "$GITHUB_STEP_SUMMARY"
+
+  type-check:
+    name: 🔍 Type Checking
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v5
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: 📦 Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: 🔧 Install dependencies
+        run: |
+          uv pip install --system -e ".[dev]"
+
+      - name: 🔍 Run MyPy
+        run: |
+          mypy src/scrap_e --html-report mypy-report --junit-xml mypy.xml
+          echo "## Type Check Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "✅ Type checking completed" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 📤 Upload MyPy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mypy-report
+          path: mypy-report/
+
+  test:
+    name: 🧪 Tests - Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    needs: [lint, type-check]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.11', '3.12', '3.13']
+        exclude:
+          - os: macos-latest
+            python-version: '3.11'
+          - os: windows-latest
+            python-version: '3.11'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v5
+
+      - name: 🐍 Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: 📦 Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: 🔧 Install dependencies
+        run: |
+          uv pip install --system -e ".[dev]"
+
+      - name: 🎭 Install Playwright browsers
+        run: playwright install chromium firefox webkit
+
+      - name: 🧪 Run tests with coverage
+        run: |
+          pytest tests/ \
+            --cov=scrap_e \
+            --cov-report=xml \
+            --cov-report=html \
+            --cov-report=term-missing \
+            --junit-xml=pytest-results.xml \
+            -v
+
+      - name: 📊 Generate test summary
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: pytest-results.xml
+          check_name: Test Results - ${{ matrix.os }} Python ${{ matrix.python-version }}
+
+      - name: 📈 Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: unittests-${{ matrix.os }}-py${{ matrix.python-version }}
+          name: codecov-${{ matrix.os }}-py${{ matrix.python-version }}
+          fail_ci_if_error: false
+
+      - name: 📤 Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: |
+            coverage.xml
+            htmlcov/
+
+  integration-test:
+    name: 🔗 Integration Tests
+    needs: [test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      mongodb:
+        image: mongo:7
+        env:
+          MONGO_INITDB_ROOT_USERNAME: testuser
+          MONGO_INITDB_ROOT_PASSWORD: testpass
+        ports:
+          - 27017:27017
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v5
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: 📦 Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: 🔧 Install dependencies
+        run: |
+          uv pip install --system -e ".[dev]"
+
+      - name: 🎭 Install Playwright browsers
+        run: playwright install chromium
+
+      - name: 🔗 Run integration tests
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb
+          MONGODB_URL: mongodb://testuser:testpass@localhost:27017
+          REDIS_URL: redis://localhost:6379
+        run: |
+          pytest tests/ -m integration -v --tb=short
+
+  performance-test:
+    name: ⚡ Performance Tests
+    needs: [test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v5
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: 📦 Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: 🔧 Install dependencies
+        run: |
+          uv pip install --system -e ".[dev]"
+          uv pip install --system pytest-benchmark locust
+
+      - name: ⚡ Run performance tests
+        run: |
+          pytest tests/ -m performance --benchmark-only --benchmark-json=benchmark.json
+
+      - name: 📊 Store benchmark result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'pytest'
+          output-file-path: benchmark.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: false
+          comment-on-alert: true
+          alert-threshold: '150%'
+
+  security-scan:
+    name: 🔒 Security Scanning
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v5
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: 📦 Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: 🔧 Install security tools
+        run: |
+          uv pip install --system bandit[toml] safety pip-audit semgrep
+
+      - name: 🔍 Run Bandit security linter
+        run: |
+          bandit -r src/ -f json -o bandit-report.json
+          bandit -r src/
+
+      - name: 🛡️ Run Safety check
+        run: |
+          uv pip freeze > requirements.txt
+          safety check --file requirements.txt --json --output safety-report.json || true
+          safety check --file requirements.txt || true
+
+      - name: 🔍 Run pip-audit
+        run: |
+          pip-audit --desc --format json --output pip-audit-report.json || true
+          pip-audit --desc || true
+
+      - name: 🔍 Run Semgrep
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: auto
+
+      - name: 📤 Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+            safety-report.json
+            pip-audit-report.json
+
+  build:
+    name: 📦 Build & Package
+    needs: [test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v5
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: 📦 Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: 🔧 Install build tools
+        run: |
+          uv pip install --system build twine
+
+      - name: 📦 Build distribution
+        run: |
+          python -m build
+          ls -la dist/
+
+      - name: ✅ Check distribution
+        run: |
+          twine check dist/*
+
+      - name: 📤 Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-packages
+          path: dist/
+
+  docker:
+    name: 🐳 Docker Build
+    needs: [test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v5
+
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔐 Log in to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: 🔐 Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📝 Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ secrets.DOCKER_USERNAME }}/scrap-e
+            ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+
+      - name: 🏗️ Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  release:
+    name: 🚀 Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, docker, security-scan, integration-test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v5
+
+      - name: 📥 Download artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: dist-packages
+          path: dist/
+
+      - name: 📝 Generate changelog
+        id: changelog
+        run: |
+          echo "# Release Notes" > RELEASE_NOTES.md
+          git log --pretty=format:"- %s" "$(git describe --tags --abbrev=0 HEAD^)"..HEAD >> RELEASE_NOTES.md
+
+      - name: 🚀 Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: RELEASE_NOTES.md
+          files: dist/*
+          generate_release_notes: true
+
+      - name: 📦 Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
+  notify:
+    name: 📢 Notifications
+    if: always()
+    needs: [lint, type-check, test, integration-test, security-scan, build, docker]
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📊 Generate summary
+        run: |
+          {
+            echo "## 📊 Workflow Summary"
+            echo ""
+            echo "| Job | Status |"
+            echo "|-----|--------|"
+            echo "| Lint | ${{ needs.lint.result }} |"
+            echo "| Type Check | ${{ needs.type-check.result }} |"
+            echo "| Tests | ${{ needs.test.result }} |"
+            echo "| Integration Tests | ${{ needs.integration-test.result }} |"
+            echo "| Security Scan | ${{ needs.security-scan.result }} |"
+            echo "| Build | ${{ needs.build.result }} |"
+            echo "| Docker | ${{ needs.docker.result }} |"
+          } >> "$GITHUB_STEP_SUMMARY"

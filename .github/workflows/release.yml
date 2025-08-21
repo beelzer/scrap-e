@@ -1,0 +1,260 @@
+name: 🚀 Release Management
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.2.3)'
+        required: true
+        type: string
+      release_type:
+        description: 'Release type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - prerelease
+      prerelease:
+        description: 'Is this a prerelease?'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  packages: write
+  id-token: write
+
+jobs:
+  prepare-release:
+    name: 📋 Prepare Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      changelog: ${{ steps.changelog.outputs.changelog }}
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: 📦 Install tools
+        run: |
+          pip install bump2version gitchangelog pystache
+
+      - name: 🔢 Determine version
+        id: version
+        run: |
+          if [ "${{ github.event.inputs.version }}" != "" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            # Auto-determine version based on release type
+            current_version=$(grep 'version = ' pyproject.toml | cut -d'"' -f2)
+            case "${{ github.event.inputs.release_type }}" in
+              major)
+                VERSION=$(echo "$current_version" | awk -F. '{print $1+1".0.0"}')
+                ;;
+              minor)
+                VERSION=$(echo "$current_version" | awk -F. '{print $1"."$2+1".0"}')
+                ;;
+              patch)
+                VERSION=$(echo "$current_version" | awk -F. '{print $1"."$2"."$3+1}')
+                ;;
+              prerelease)
+                VERSION=$(echo "$current_version" | awk -F. '{print $1"."$2"."$3"-rc."NR}')
+                ;;
+            esac
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "📦 Version: $VERSION"
+
+      - name: 📝 Generate changelog
+        id: changelog
+        run: |
+          # Generate changelog for this version
+          git log --pretty=format:"- %s (%h)" "$(git describe --tags --abbrev=0 2>/dev/null || echo "")"..HEAD > CHANGELOG_TEMP.md
+
+          # Format changelog
+          {
+            echo "## What's Changed"
+            echo ""
+            echo "### 🚀 Features"
+            grep -E "^- (feat|feature):" CHANGELOG_TEMP.md | sed 's/^- feat[ure]*: /- /' || true
+            echo ""
+            echo "### 🐛 Bug Fixes"
+            grep -E "^- (fix|bugfix):" CHANGELOG_TEMP.md | sed 's/^- \(fix\|bugfix\): /- /' || true
+            echo ""
+            echo "### 📚 Documentation"
+            grep -E "^- (docs|doc):" CHANGELOG_TEMP.md | sed 's/^- doc[s]*: /- /' || true
+            echo ""
+            echo "### 🔧 Maintenance"
+            grep -E "^- (chore|build|ci|refactor|test|perf):" CHANGELOG_TEMP.md | sed 's/^- \(chore\|build\|ci\|refactor\|test\|perf\): /- /' || true
+          } > CHANGELOG.md
+
+          # Store for output
+          {
+            echo "changelog<<EOF"
+            cat CHANGELOG.md
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: 🔄 Update version in files
+        run: |
+          # Update pyproject.toml
+          sed -i "s/version = \".*\"/version = \"${{ steps.version.outputs.version }}\"/" pyproject.toml
+
+          # Update __init__.py if it exists
+          if [ -f "src/scrap_e/__init__.py" ]; then
+            sed -i "s/__version__ = \".*\"/__version__ = \"${{ steps.version.outputs.version }}\"/" src/scrap_e/__init__.py
+          fi
+
+      - name: 📝 Create release PR
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: release v${{ steps.version.outputs.version }}"
+          title: "🚀 Release v${{ steps.version.outputs.version }}"
+          body: |
+            ## 🎉 Release v${{ steps.version.outputs.version }}
+
+            ${{ steps.changelog.outputs.changelog }}
+
+            ### Release Checklist
+            - [ ] Version numbers updated
+            - [ ] Changelog reviewed
+            - [ ] All CI checks pass
+            - [ ] Documentation updated
+
+            ---
+            *This PR was automatically created by the release workflow*
+          branch: release/v${{ steps.version.outputs.version }}
+          labels: |
+            release
+            automated
+
+  create-release:
+    name: 🎁 Create GitHub Release
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: release/v${{ needs.prepare-release.outputs.version }}
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: 📦 Build distribution
+        run: |
+          pip install build
+          python -m build
+
+      - name: 🏷️ Create and push tag
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git tag -a "v${{ needs.prepare-release.outputs.version }}" -m "Release v${{ needs.prepare-release.outputs.version }}"
+          git push origin "v${{ needs.prepare-release.outputs.version }}"
+
+      - name: 🎉 Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.prepare-release.outputs.version }}
+          name: v${{ needs.prepare-release.outputs.version }}
+          body: ${{ needs.prepare-release.outputs.changelog }}
+          draft: false
+          prerelease: ${{ github.event.inputs.prerelease }}
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+          generate_release_notes: true
+
+  publish-pypi:
+    name: 📦 Publish to PyPI
+    needs: [prepare-release, create-release]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/scrap-e/
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: v${{ needs.prepare-release.outputs.version }}
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: 📦 Build distribution
+        run: |
+          pip install build
+          python -m build
+
+      - name: 🚀 Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          skip-existing: true
+
+  post-release:
+    name: 📮 Post-Release Tasks
+    needs: [prepare-release, create-release, publish-pypi]
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: 🔀 Merge release branch
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git merge origin/release/v${{ needs.prepare-release.outputs.version }} --no-ff -m "Merge release v${{ needs.prepare-release.outputs.version }}"
+          git push origin master
+
+      - name: 🧹 Clean up release branch
+        run: |
+          git push origin --delete release/v${{ needs.prepare-release.outputs.version }} || true
+
+      - name: 📢 Announce release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ needs.prepare-release.outputs.version }}';
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🎉 Release v${version} is now available!`,
+              body: `## scrap-e v${version} has been released!\n\n` +
+                    `### 📦 Installation\n` +
+                    `\`\`\`bash\npip install scrap-e==${version}\n\`\`\`\n\n` +
+                    `### 📚 Links\n` +
+                    `- [Release Notes](https://github.com/${context.repo.owner}/${context.repo.repo}/releases/tag/v${version})\n` +
+                    `- [PyPI Package](https://pypi.org/project/scrap-e/${version}/)\n` +
+                    `- [Documentation](https://${context.repo.owner}.github.io/${context.repo.repo}/)\n`,
+              labels: ['announcement', 'release']
+            });
+
+            // Auto-close the announcement after creating it
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.data.number,
+              state: 'closed'
+            });

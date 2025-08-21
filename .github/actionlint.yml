@@ -1,0 +1,31 @@
+# Actionlint configuration
+# https://github.com/rhysd/actionlint/blob/main/docs/config.md
+
+# Enable shellcheck integration for better shell script checking
+shellcheck:
+  enable: true
+
+# Enable pyflakes integration for Python code in workflows
+pyflakes:
+  enable: true
+
+# Self-hosted runner configuration
+self-hosted-runner:
+  # Labels for your self-hosted runners (if any)
+  labels: []
+
+# Configuration for specific rules
+config-variables:
+  # Define common variables used across workflows
+  - PYTHON_VERSION
+  - UV_VERSION
+  - POETRY_VERSION
+  - NODE_VERSION
+  - FORCE_COLOR
+  - PIP_DISABLE_PIP_VERSION_CHECK
+  - PYTHONUNBUFFERED
+
+# Ignore specific errors
+# ignore:
+#   - 'workflow ".*" is not used'
+#   - 'undefined secret ".*"'

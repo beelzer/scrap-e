@@ -1,0 +1,23 @@
+# Code Owners for Scrap-E
+# These users will be automatically requested for review on pull requests
+
+# Global owners (for all files)
+* @beelzer
+
+# Core framework
+/src/scrap_e/core/ @beelzer
+
+# Scrapers
+/src/scrap_e/scrapers/web/ @beelzer
+/src/scrap_e/scrapers/api/ @beelzer
+/src/scrap_e/scrapers/database/ @beelzer
+
+# Documentation
+/docs/ @beelzer
+*.md @beelzer
+
+# Configuration files
+/pyproject.toml @beelzer
+/Dockerfile @beelzer
+/docker-compose.yml @beelzer
+/.github/ @beelzer

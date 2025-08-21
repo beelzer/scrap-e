@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions & Discussions
+    url: https://github.com/beelzer/scrap-e/discussions
+    about: Please ask and answer questions here
+  - name: Documentation
+    url: https://github.com/beelzer/scrap-e/wiki
+    about: Check our documentation for usage guides

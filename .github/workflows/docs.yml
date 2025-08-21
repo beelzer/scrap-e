@@ -1,0 +1,111 @@
+name: 📚 Documentation
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - 'docs/**'
+      - 'src/**'
+      - 'mkdocs.yml'
+      - 'README.md'
+  pull_request:
+    branches: [master, main]
+    paths:
+      - 'docs/**'
+      - 'src/**'
+      - 'mkdocs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build-docs:
+    name: 📖 Build Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: 📦 Install dependencies
+        run: |
+          pip install -e ".[docs]"
+
+      - name: 🏗️ Build documentation
+        run: |
+          mkdocs build --strict --verbose
+
+      - name: 📤 Upload documentation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation
+          path: site/
+
+      - name: 🔍 Check for broken links
+        run: |
+          pip install linkchecker
+          linkchecker site/ --no-warnings --ignore-url=^mailto: || true
+
+  deploy-docs:
+    name: 🚀 Deploy Documentation
+    needs: build-docs
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ github.event.repository.html_url }}
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v5
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: 📦 Install dependencies
+        run: |
+          pip install -e ".[docs]"
+
+      - name: 🚀 Deploy to GitHub Pages
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          mkdocs gh-deploy --force --clean
+
+  api-docs:
+    name: 📜 Generate API Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v5
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: 📦 Install dependencies
+        run: |
+          pip install -e ".[dev,docs]"
+          pip install pydoc-markdown pdoc3 sphinx sphinx-rtd-theme
+
+      - name: 📝 Generate API docs with pdoc
+        run: |
+          pdoc --html --output-dir api-docs --force src/scrap_e
+
+      - name: 📤 Upload API documentation
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-documentation
+          path: api-docs/

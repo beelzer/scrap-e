@@ -1,0 +1,29 @@
+# Handle line endings automatically for files detected as text
+* text=auto
+
+# Python files always use LF
+*.py text eol=lf
+*.pyi text eol=lf
+
+# Config files use LF
+*.toml text eol=lf
+*.cfg text eol=lf
+*.ini text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Shell scripts must use LF
+*.sh text eol=lf
+
+# Windows scripts use CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Documentation
+*.md text
+*.rst text
+*.txt text
+LICENSE text
+README text
