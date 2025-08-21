@@ -206,9 +206,7 @@ class TestBasicCoverage:
 
     async def test_scraper_result(self):
         """Test scraper result."""
-        metadata = ScraperMetadata(
-            scraper_type=ScraperType.WEB_HTTP, source="http://test.com"
-        )
+        metadata = ScraperMetadata(scraper_type=ScraperType.WEB_HTTP, source="http://test.com")
         result = ScraperResult(success=True, data={"test": "data"}, metadata=metadata)
         assert result.success is True
         assert result.data == {"test": "data"}

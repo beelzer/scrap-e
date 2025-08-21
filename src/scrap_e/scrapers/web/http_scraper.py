@@ -109,18 +109,14 @@ class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
             if self.extraction_rules or kwargs.get("extraction_rules"):
                 rules = kwargs.get("extraction_rules", self.extraction_rules)
                 if page_data.content is not None:
-                    page_data.extracted_data = await self._extract_data(
-                        page_data.content, rules
-                    )
+                    page_data.extracted_data = await self._extract_data(page_data.content, rules)
 
             return page_data
 
         except httpx.HTTPError as e:
             raise ConnectionError(f"HTTP error occurred: {e!s}", {"url": source}) from e
         except Exception as e:
-            raise ScraperError(
-                f"Failed to scrape {source}: {e!s}", {"url": source}
-            ) from e
+            raise ScraperError(f"Failed to scrape {source}: {e!s}", {"url": source}) from e
 
     def _build_request(self, url: str, **kwargs: Any) -> HttpRequest:
         """Build HTTP request from URL and kwargs."""
@@ -132,9 +128,7 @@ class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
             data=kwargs.get("data"),
             json_data=kwargs.get("json"),
             timeout=kwargs.get("timeout", self.config.default_timeout),
-            follow_redirects=kwargs.get(
-                "follow_redirects", self.config.follow_redirects
-            ),
+            follow_redirects=kwargs.get("follow_redirects", self.config.follow_redirects),
             verify_ssl=kwargs.get("verify_ssl", self.config.verify_ssl),
             cookies=kwargs.get("cookies"),
         )
@@ -201,9 +195,7 @@ class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
 
         return page_data
 
-    async def _extract_data(
-        self, content: str, rules: list[ExtractionRule]
-    ) -> dict[str, Any]:
+    async def _extract_data(self, content: str, rules: list[ExtractionRule]) -> dict[str, Any]:
         """Extract data using extraction rules."""
         if not content:
             return {}
@@ -278,9 +270,7 @@ class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
             response = await self._client.head(source, follow_redirects=True)
             response.raise_for_status()
         except httpx.HTTPError as e:
-            raise ConnectionError(
-                f"URL validation failed: {e!s}", {"url": source}
-            ) from e
+            raise ConnectionError(f"URL validation failed: {e!s}", {"url": source}) from e
 
     async def _get_next_page(
         self,
@@ -301,9 +291,7 @@ class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
         if self.config.pagination.enabled:
             if self.config.pagination.next_page_selector and result.data.content:
                 parser = HtmlParser(result.data.content)
-                next_link = parser.soup.select_one(
-                    self.config.pagination.next_page_selector
-                )
+                next_link = parser.soup.select_one(self.config.pagination.next_page_selector)
                 if next_link and next_link.get("href"):
                     href = next_link.get("href")
                     if isinstance(href, str):
@@ -312,9 +300,7 @@ class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
 
             # URL pattern-based pagination
             if self.config.pagination.next_page_url_pattern:
-                return self.config.pagination.next_page_url_pattern.format(
-                    page=page_number + 1
-                )
+                return self.config.pagination.next_page_url_pattern.format(page=page_number + 1)
 
         return None
 
@@ -341,9 +327,7 @@ class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
         # Handle sitemap index
         if root.tag.endswith("sitemapindex"):
             sitemap_urls = []
-            sitemap_locs = root.xpath(
-                "//ns:sitemap/ns:loc", namespaces={"ns": root.nsmap[None]}
-            )
+            sitemap_locs = root.xpath("//ns:sitemap/ns:loc", namespaces={"ns": root.nsmap[None]})
             if isinstance(sitemap_locs, list):
                 for sitemap in sitemap_locs:
                     if hasattr(sitemap, "text") and sitemap.text:
@@ -374,9 +358,7 @@ class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
             # Update cookies from response
             if result.success and result.data:
                 response_cookies = {}
-                for cookie_header in result.data.headers.get("set-cookie", "").split(
-                    ","
-                ):
+                for cookie_header in result.data.headers.get("set-cookie", "").split(","):
                     if "=" in cookie_header:
                         key, value = cookie_header.split("=", 1)
                         response_cookies[key.strip()] = value.split(";")[0].strip()

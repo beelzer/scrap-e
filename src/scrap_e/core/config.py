@@ -37,9 +37,7 @@ class ScraperConfig(BaseSettings):
     debug: bool = False
     log_level: str = "INFO"
     output_dir: Path = Path("./data")
-    temp_dir: Path = Field(
-        default_factory=lambda: Path(tempfile.gettempdir()) / "scraper"
-    )
+    temp_dir: Path = Field(default_factory=lambda: Path(tempfile.gettempdir()) / "scraper")
     max_workers: int = 10
     async_enabled: bool = True
 
@@ -159,9 +157,7 @@ class ScraperConfig(BaseSettings):
         elif file_path.suffix == ".json":
             data = json.loads(content)
         else:
-            raise ValueError(
-                f"Unsupported configuration file format: {file_path.suffix}"
-            )
+            raise ValueError(f"Unsupported configuration file format: {file_path.suffix}")
 
         return cls(**data)
 

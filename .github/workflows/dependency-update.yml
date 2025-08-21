@@ -88,26 +88,38 @@ jobs:
           assignees: beelzer
           reviewers: beelzer
 
-  dependabot-auto-merge:
-    name: 🤖 Auto-merge Dependabot PRs
+  renovate-auto-merge:
+    name: 🤖 Auto-merge Renovate PRs
     runs-on: ubuntu-latest
-    if: github.actor == 'dependabot[bot]'
+    if: github.actor == 'renovate[bot]' || github.actor == 'renovate-bot'
     steps:
-      - name: 🔍 Fetch Dependabot metadata
-        id: metadata
-        uses: dependabot/fetch-metadata@v2
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: 📥 Checkout
+        uses: actions/checkout@v5
+
+      - name: 🔍 Check PR labels
+        id: check-labels
+        run: |
+          PR_LABELS=$(gh pr view "${{ github.event.pull_request.number }}" --json labels --jq '.labels[].name' | tr '\n' ' ')
+          echo "labels=$PR_LABELS" >> "$GITHUB_OUTPUT"
+
+          # Check if this is a patch or minor update based on labels
+          if echo "$PR_LABELS" | grep -E "(patch|minor)" > /dev/null; then
+            echo "should_merge=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_merge=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: ✅ Auto-approve PR
-        if: steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        if: steps.check-labels.outputs.should_merge == 'true'
         run: gh pr review --approve "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 🔀 Auto-merge PR
-        if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        if: steps.check-labels.outputs.should_merge == 'true'
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}

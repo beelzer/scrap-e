@@ -178,9 +178,7 @@ class TestBrowserScraper:
 
             mock_playwright["page"].on = Mock(side_effect=mock_on)
 
-            result = await browser_scraper._scrape(
-                "https://example.com", capture_console=True
-            )
+            result = await browser_scraper._scrape("https://example.com", capture_console=True)
 
             # The test passes if no error is raised
             assert isinstance(result, BrowserPageData)
@@ -207,9 +205,7 @@ class TestBrowserScraper:
 
             mock_playwright["page"].on = on_request
 
-            result = await browser_scraper._scrape(
-                "https://example.com", capture_network=True
-            )
+            result = await browser_scraper._scrape("https://example.com", capture_network=True)
 
             assert len(result.network_requests) == 1
             assert result.network_requests[0]["url"] == "https://api.example.com/data"
@@ -258,13 +254,9 @@ class TestBrowserScraper:
             mock_element = AsyncMock()
             mock_element.text_content = AsyncMock(return_value="Extracted Text")
             mock_element.get_attribute = AsyncMock(return_value="attribute_value")
-            mock_playwright["page"].query_selector_all = AsyncMock(
-                return_value=[mock_element]
-            )
+            mock_playwright["page"].query_selector_all = AsyncMock(return_value=[mock_element])
 
-            rule = ExtractionRule(
-                name="test_field", selector=".test-class", required=False
-            )
+            rule = ExtractionRule(name="test_field", selector=".test-class", required=False)
             browser_scraper.extraction_rules = [rule]
 
             result = await browser_scraper._scrape("https://example.com")
@@ -323,9 +315,7 @@ class TestBrowserScraper:
         page.wait_for_selector.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_wait_for_content_with_wait_time(
-        self, browser_scraper, mock_playwright
-    ):
+    async def test_wait_for_content_with_wait_time(self, browser_scraper, mock_playwright):
         """Test waiting with additional wait time."""
         browser_scraper._context = mock_playwright["context"]
         page = mock_playwright["page"]
@@ -446,16 +436,12 @@ class TestBrowserScraper:
             ),
         )
 
-        next_url = await browser_scraper._get_next_page(
-            "https://example.com/page1", result, 1
-        )
+        next_url = await browser_scraper._get_next_page("https://example.com/page1", result, 1)
         assert next_url == "https://example.com/page2"
 
         # Test with no next page
         result.data.extracted_data = {}
-        next_url = await browser_scraper._get_next_page(
-            "https://example.com/page1", result, 1
-        )
+        next_url = await browser_scraper._get_next_page("https://example.com/page1", result, 1)
         assert next_url is None
 
     @pytest.mark.asyncio
@@ -488,9 +474,7 @@ class TestBrowserScraper:
 
             # Simulate scroll height changes
             scroll_heights = [1000, 2000, 2000]  # Third scroll shows no new content
-            mock_playwright["page"].evaluate = AsyncMock(
-                side_effect=scroll_heights + [None] * 10
-            )
+            mock_playwright["page"].evaluate = AsyncMock(side_effect=scroll_heights + [None] * 10)
 
             result = await browser_scraper.scrape_infinite_scroll(
                 "https://example.com", max_scrolls=5
@@ -531,9 +515,7 @@ class TestBrowserScraper:
             assert isinstance(result, BrowserPageData)
             mock_playwright["page"].click.assert_called_once_with("#button")
             mock_playwright["page"].fill.assert_called_once_with("#input", "test")
-            mock_playwright["page"].select_option.assert_called_once_with(
-                "#dropdown", "option1"
-            )
+            mock_playwright["page"].select_option.assert_called_once_with("#dropdown", "option1")
             mock_playwright["page"].hover.assert_called_once_with("#menu")
             # Check sleep was called for wait and after each interaction
             assert mock_sleep.call_count >= len(interactions)
@@ -558,9 +540,7 @@ class TestBrowserScraper:
             assert isinstance(results[0], BrowserPageData)
 
     @pytest.mark.asyncio
-    async def test_extract_data_from_page_with_multiple(
-        self, browser_scraper, mock_playwright
-    ):
+    async def test_extract_data_from_page_with_multiple(self, browser_scraper, mock_playwright):
         """Test extracting multiple values from page."""
         page = mock_playwright["page"]
 
@@ -583,16 +563,12 @@ class TestBrowserScraper:
         assert result["items"][0] == "Text 0"
 
     @pytest.mark.asyncio
-    async def test_extract_data_from_page_with_attribute(
-        self, browser_scraper, mock_playwright
-    ):
+    async def test_extract_data_from_page_with_attribute(self, browser_scraper, mock_playwright):
         """Test extracting attribute values from page."""
         page = mock_playwright["page"]
 
         mock_element = AsyncMock()
-        mock_element.get_attribute = AsyncMock(
-            return_value="https://example.com/image.jpg"
-        )
+        mock_element.get_attribute = AsyncMock(return_value="https://example.com/image.jpg")
         page.query_selector_all = AsyncMock(return_value=[mock_element])
 
         rule = ExtractionRule(name="image_url", selector="img", attribute="src")
@@ -603,9 +579,7 @@ class TestBrowserScraper:
         mock_element.get_attribute.assert_called_once_with("src")
 
     @pytest.mark.asyncio
-    async def test_extract_data_from_page_with_transform(
-        self, browser_scraper, mock_playwright
-    ):
+    async def test_extract_data_from_page_with_transform(self, browser_scraper, mock_playwright):
         """Test extracting with transformation."""
         page = mock_playwright["page"]
 
@@ -651,6 +625,4 @@ class TestBrowserScraper:
                 with pytest.raises(ScraperError):
                     await browser_scraper._scrape("https://example.com")
 
-                mock_playwright["page"].screenshot.assert_called_once_with(
-                    full_page=True
-                )
+                mock_playwright["page"].screenshot.assert_called_once_with(full_page=True)

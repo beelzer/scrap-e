@@ -23,6 +23,11 @@
   "dependencyDashboardHeader": "This issue lists all available Renovate updates. Updates will not create PRs automatically until CI is fixed.",
   "packageRules": [
     {
+      "description": "Ignore local package",
+      "matchPackageNames": ["scrap-e"],
+      "enabled": false
+    },
+    {
       "description": "Group Python development dependencies",
       "matchDepTypes": ["devDependencies"],
       "matchManagers": ["pip_requirements", "pep621"],
@@ -68,13 +73,14 @@
       "groupName": "docker-base-images"
     }
   ],
+  "ignoreDeps": ["scrap-e"],
   "customManagers": [
     {
       "customType": "regex",
       "description": "Update uv.lock for Python dependencies",
       "fileMatch": ["^uv\\.lock$"],
       "matchStrings": [
-        "name = \"(?<depName>[^\"]+)\"\\s+version = \"(?<currentValue>[^\"]+)\""
+        "name = \"(?<depName>(?!scrap-e)[^\"]+)\"\\s+version = \"(?<currentValue>[^\"]+)\""
       ],
       "datasourceTemplate": "pypi",
       "versioningTemplate": "pep440"

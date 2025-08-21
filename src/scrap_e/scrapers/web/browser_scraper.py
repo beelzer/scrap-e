@@ -113,9 +113,7 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
             page = await self._context.new_page()
 
             # Set up monitoring
-            console_logs, network_requests = await self._setup_page_monitoring(
-                page, **kwargs
-            )
+            console_logs, network_requests = await self._setup_page_monitoring(page, **kwargs)
 
             # Load and prepare page
             await self._load_page(page, source, **kwargs)
@@ -124,9 +122,7 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
             page_data = await self._extract_page_data(page, source)
 
             # Enhance page data with additional info
-            await self._enhance_page_data(
-                page_data, page, console_logs, network_requests, **kwargs
-            )
+            await self._enhance_page_data(page_data, page, console_logs, network_requests, **kwargs)
 
             return page_data
 
@@ -204,26 +200,18 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
             rules = kwargs.get("extraction_rules", self.extraction_rules)
             page_data.extracted_data = await self._extract_data_from_page(page, rules)
 
-    async def _handle_scrape_error(
-        self, error: Exception, page: Page | None, source: str
-    ) -> None:
+    async def _handle_scrape_error(self, error: Exception, page: Page | None, source: str) -> None:
         """Handle scraping errors."""
         if self.config.browser_screenshot_on_error and page:
             try:
                 screenshot = await page.screenshot(full_page=True)
-                error_path = (
-                    Path(self.config.temp_dir) / f"error_{source.replace('/', '_')}.png"
-                )
+                error_path = Path(self.config.temp_dir) / f"error_{source.replace('/', '_')}.png"
                 error_path.write_bytes(screenshot)
                 self.logger.error(f"Error screenshot saved to {error_path}")
             except Exception as screenshot_error:
-                self.logger.debug(
-                    f"Failed to capture error screenshot: {screenshot_error!s}"
-                )
+                self.logger.debug(f"Failed to capture error screenshot: {screenshot_error!s}")
 
-        raise ScraperError(
-            f"Browser scraping failed: {error!s}", {"url": source}
-        ) from error
+        raise ScraperError(f"Browser scraping failed: {error!s}", {"url": source}) from error
 
     async def _navigate_to_page(self, page: Page, url: str, **kwargs: Any) -> None:
         """Navigate to a URL with proper wait conditions."""
@@ -233,19 +221,13 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
         try:
             await page.goto(url, wait_until=wait_until, timeout=timeout)
         except Exception as e:
-            raise ConnectionError(
-                f"Failed to navigate to {url}: {e!s}", {"url": url}
-            ) from e
+            raise ConnectionError(f"Failed to navigate to {url}: {e!s}", {"url": url}) from e
 
     async def _wait_for_content(self, page: Page, **kwargs: Any) -> None:
         """Wait for content to load based on configuration."""
         # Wait for specific selector if provided
-        if wait_selector := (
-            kwargs.get("wait_for_selector") or self.config.wait_for_selector
-        ):
-            timeout = (
-                kwargs.get("wait_for_timeout", self.config.wait_for_timeout) * 1000
-            )
+        if wait_selector := (kwargs.get("wait_for_selector") or self.config.wait_for_selector):
+            timeout = kwargs.get("wait_for_timeout", self.config.wait_for_timeout) * 1000
             try:
                 await page.wait_for_selector(wait_selector, timeout=timeout)
             except Exception:
@@ -402,9 +384,7 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
         try:
             response = await page.goto(source, wait_until="domcontentloaded")
             if response and response.status >= 400:
-                raise ConnectionError(
-                    f"URL returned status {response.status}", {"url": source}
-                )
+                raise ConnectionError(f"URL returned status {response.status}", {"url": source})
         finally:
             await page.close()
 
@@ -430,9 +410,7 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
             and result.data.content
         ):
             parser = HtmlParser(result.data.content)
-            next_link = parser.soup.select_one(
-                self.config.pagination.next_page_selector
-            )
+            next_link = parser.soup.select_one(self.config.pagination.next_page_selector)
             if next_link and next_link.get("href"):
                 href = next_link.get("href")
                 if isinstance(href, str):
@@ -508,9 +486,7 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
 
                 # Check if we've reached the end
                 if new_height == prev_height:
-                    self.logger.info(
-                        f"Reached end of infinite scroll after {i + 1} scrolls"
-                    )
+                    self.logger.info(f"Reached end of infinite scroll after {i + 1} scrolls")
                     break
 
             # Extract final page data

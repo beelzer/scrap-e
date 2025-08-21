@@ -70,9 +70,7 @@ async def test_http_scraper_error_handling():
     """Test HTTP scraper error handling."""
     scraper = HttpScraper()
 
-    with patch.object(
-        scraper, "_make_request", side_effect=httpx.HTTPError("Connection failed")
-    ):
+    with patch.object(scraper, "_make_request", side_effect=httpx.HTTPError("Connection failed")):
         result = await scraper.scrape("https://example.com")
 
         assert result.success is False

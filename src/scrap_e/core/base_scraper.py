@@ -279,9 +279,7 @@ class BaseScraper[T: BaseModel, ConfigT: ScraperConfig](ABC):
     def get_stats(self) -> ScraperStats:
         """Get current scraper statistics."""
         if self.stats.total_requests > 0:
-            self.stats.average_response_time = (
-                self.stats.total_duration / self.stats.total_requests
-            )
+            self.stats.average_response_time = self.stats.total_duration / self.stats.total_requests
         return self.stats
 
     def reset_stats(self) -> None:

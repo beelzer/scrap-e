@@ -11,7 +11,8 @@ changelog:
       - invalid
       - wontfix
     authors:
-      - dependabot
+      - renovate[bot]
+      - renovate-bot
       - github-actions
 
   # Categories for grouping pull requests in release notes

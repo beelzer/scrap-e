@@ -79,9 +79,7 @@ class HtmlParser:
             raise ParsingError(f"No extraction method specified in rule: {rule.name}")
         except Exception as e:
             if rule.required:
-                raise ParsingError(
-                    f"Failed to extract required field '{rule.name}': {e!s}"
-                ) from e
+                raise ParsingError(f"Failed to extract required field '{rule.name}': {e!s}") from e
             return rule.default
 
     def _extract_css(self, rule: ExtractionRule) -> Any:
@@ -148,11 +146,7 @@ class HtmlParser:
 
     def _extract_element_data(self, element: Tag, rule: ExtractionRule) -> Any:
         """Extract data from a BeautifulSoup element."""
-        value = (
-            element.get(rule.attribute)
-            if rule.attribute
-            else element.get_text(strip=True)
-        )
+        value = element.get(rule.attribute) if rule.attribute else element.get_text(strip=True)
 
         if rule.transform:
             value = self._apply_transform(value, rule.transform)
@@ -294,12 +288,8 @@ class HtmlParser:
                 links.append(
                     {
                         "url": href,
-                        "text": (
-                            link.get_text(strip=True) if isinstance(link, Tag) else ""
-                        ),
-                        "title": (
-                            str(link.get("title", "")) if isinstance(link, Tag) else ""
-                        ),
+                        "text": (link.get_text(strip=True) if isinstance(link, Tag) else ""),
+                        "title": (str(link.get("title", "")) if isinstance(link, Tag) else ""),
                     }
                 )
 
@@ -404,9 +394,7 @@ class HtmlParser:
         if thead and isinstance(thead, Tag):
             header_row = thead.find("tr")
             if header_row and isinstance(header_row, Tag):
-                headers = [
-                    th.get_text(strip=True) for th in header_row.find_all(["th", "td"])
-                ]
+                headers = [th.get_text(strip=True) for th in header_row.find_all(["th", "td"])]
         else:
             # Try to find headers in first row
             first_row = table.find("tr")
@@ -453,10 +441,7 @@ class HtmlParser:
             if thead and isinstance(thead, Tag):
                 header_row = thead.find("tr")
                 if header_row and isinstance(header_row, Tag):
-                    headers = [
-                        th.get_text(strip=True)
-                        for th in header_row.find_all(["th", "td"])
-                    ]
+                    headers = [th.get_text(strip=True) for th in header_row.find_all(["th", "td"])]
 
             # If no thead, try first row
             if not headers:
@@ -475,8 +460,7 @@ class HtmlParser:
                     cells = tr.find_all(["td", "th"])
                     if headers and len(cells) == len(headers):
                         row: dict[str, Any] | list[Any] = {
-                            headers[i]: cell.get_text(strip=True)
-                            for i, cell in enumerate(cells)
+                            headers[i]: cell.get_text(strip=True) for i, cell in enumerate(cells)
                         }
                     else:
                         row = [cell.get_text(strip=True) for cell in cells]
