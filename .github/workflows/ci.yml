@@ -267,9 +267,13 @@ jobs:
 
       - name: ⚡ Run performance tests
         run: |
-          pytest tests/ -m performance --benchmark-only --benchmark-json=benchmark.json || echo "No performance tests found (exit code $?)"
+          pytest tests/ -m performance --benchmark-only --benchmark-json=benchmark.json || {
+            echo "No performance tests found (exit code $?)"
+            echo '{}' > benchmark.json
+          }
 
       - name: 📊 Store benchmark result
+        if: success() && hashFiles('benchmark.json') != ''
         uses: benchmark-action/github-action-benchmark@v1
         with:
           tool: 'pytest'
