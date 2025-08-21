@@ -31,20 +31,20 @@
       "description": "Group Python development dependencies",
       "matchDepTypes": ["devDependencies"],
       "matchManagers": ["pip_requirements", "pep621"],
-      "matchPackagePatterns": ["pytest*", "ruff", "mypy", "black", "isort", "pre-commit", "ipython"],
+      "matchPackageNames": ["pytest*", "ruff", "mypy", "black", "isort", "pre-commit", "ipython"],
       "groupName": "python-dev-dependencies",
       "groupSlug": "python-dev"
     },
     {
       "description": "Group Python documentation dependencies",
       "matchManagers": ["pip_requirements", "pep621"],
-      "matchPackagePatterns": ["mkdocs*", "sphinx*"],
+      "matchPackageNames": ["mkdocs*", "sphinx*"],
       "groupName": "documentation",
       "groupSlug": "docs"
     },
     {
       "description": "Group Python type stubs",
-      "matchPackagePatterns": ["^types-", ".*-stubs$"],
+      "matchPackageNames": ["types-*", "*-stubs"],
       "groupName": "python-types",
       "groupSlug": "types"
     },

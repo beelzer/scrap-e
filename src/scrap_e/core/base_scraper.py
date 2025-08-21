@@ -13,12 +13,7 @@ from pydantic import BaseModel
 
 from scrap_e.core.config import ScraperConfig
 from scrap_e.core.exceptions import ScraperError, TimeoutError
-from scrap_e.core.models import (
-    ScraperMetadata,
-    ScraperResult,
-    ScraperStats,
-    ScraperType,
-)
+from scrap_e.core.models import ScraperMetadata, ScraperResult, ScraperStats, ScraperType
 
 T = TypeVar("T", bound=BaseModel)
 ConfigT = TypeVar("ConfigT", bound=ScraperConfig)

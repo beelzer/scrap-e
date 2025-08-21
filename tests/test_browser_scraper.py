@@ -7,12 +7,7 @@ from playwright.async_api import Browser, BrowserContext, Page
 
 from scrap_e.core.config import WebScraperConfig
 from scrap_e.core.exceptions import ConnectionError, ScraperError
-from scrap_e.core.models import (
-    ExtractionRule,
-    ScraperMetadata,
-    ScraperResult,
-    ScraperType,
-)
+from scrap_e.core.models import ExtractionRule, ScraperMetadata, ScraperResult, ScraperType
 from scrap_e.scrapers.web.browser_scraper import BrowserPageData, BrowserScraper
 
 
