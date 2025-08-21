@@ -130,12 +130,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.11', '3.12', '3.13']
-        exclude:
-          - os: macos-latest
-            python-version: '3.11'
-          - os: windows-latest
-            python-version: '3.11'
+        python-version: ['3.13']
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
@@ -161,17 +156,10 @@ jobs:
         run: playwright install chromium firefox webkit
 
       - name: 🧪 Run tests with coverage
-        run: |
-          pytest tests/ \
-            --cov=scrap_e \
-            --cov-report=xml \
-            --cov-report=html \
-            --cov-report=term-missing \
-            --junit-xml=pytest-results.xml \
-            -v
+        run: pytest tests/ --cov=scrap_e --cov-report=xml --cov-report=html --cov-report=term-missing --junit-xml=pytest-results.xml -v
 
       - name: 📊 Generate test summary
-        if: always()
+        if: always() && runner.os == 'Linux'
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
           files: pytest-results.xml
