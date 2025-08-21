@@ -162,7 +162,6 @@ jobs:
           files: ./coverage.xml
           flags: unittests-${{ matrix.os }}-py${{ matrix.python-version }}
           name: codecov-${{ matrix.os }}-py${{ matrix.python-version }}
-          fail_ci_if_error: false
 
       - name: 📤 Upload coverage reports
         if: always()
