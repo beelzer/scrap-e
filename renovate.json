@@ -1,119 +1,15 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended",
-    ":dependencyDashboard",
-    ":semanticCommits",
-    ":autodetectPinVersions"
+    "config:recommended"
   ],
-  "labels": ["dependencies"],
-  "assignees": ["beelzer"],
-  "reviewers": ["beelzer"],
-  "timezone": "UTC",
-  "schedule": ["after 6am on monday"],
-  "prHourlyLimit": 2,
-  "prConcurrentLimit": 10,
-  "prCreation": "not-pending",
-  "dependencyDashboard": true,
-  "dependencyDashboardTitle": "🔄 Dependency Updates Dashboard",
-  "dependencyDashboardHeader": "This issue lists all available Renovate updates. Updates will not create PRs automatically until CI is fixed.",
   "packageRules": [
     {
-      "description": "Ignore local package",
-      "matchPackageNames": ["scrap-e"],
-      "enabled": false
-    },
-    {
-      "description": "Group Python development dependencies",
-      "matchDepTypes": ["devDependencies"],
-      "matchManagers": ["pip_requirements", "pep621"],
-      "matchPackageNames": ["pytest*", "ruff", "mypy", "pre-commit", "ipython"],
-      "groupName": "python-dev-dependencies",
-      "groupSlug": "python-dev"
-    },
-    {
-      "description": "Group Python documentation dependencies",
-      "matchManagers": ["pip_requirements", "pep621"],
-      "matchPackageNames": ["mkdocs*", "sphinx*"],
-      "groupName": "documentation",
-      "groupSlug": "docs"
-    },
-    {
-      "description": "Group Python type stubs",
-      "matchPackageNames": ["types-*", "*-stubs"],
-      "groupName": "python-types",
-      "groupSlug": "types"
-    },
-    {
-      "description": "Automerge patch updates",
-      "matchUpdateTypes": ["patch"],
-      "automerge": true,
-      "automergeType": "pr"
-    },
-    {
-      "description": "Automerge minor updates for dev dependencies",
-      "matchDepTypes": ["devDependencies"],
-      "matchUpdateTypes": ["minor"],
-      "automerge": true,
-      "automergeType": "pr"
-    },
-    {
-      "description": "Pin Docker digests",
-      "matchManagers": ["dockerfile", "docker-compose"],
-      "pinDigests": true
-    },
-    {
-      "description": "Group Docker base image updates",
-      "matchManagers": ["dockerfile"],
-      "matchPackageNames": ["python"],
-      "groupName": "docker-base-images"
+      "matchManagers": ["pip_requirements", "pip_setup", "pipenv", "poetry", "pyproject"],
+      "enabled": true
     }
   ],
-  "ignoreDeps": ["scrap-e"],
-  "customManagers": [
-    {
-      "customType": "regex",
-      "description": "Update uv.lock for Python dependencies",
-      "fileMatch": ["^uv\\.lock$"],
-      "matchStrings": [
-        "name = \"(?<depName>[^\"]+)\"\\s+version = \"(?<currentValue>[^\"]+)\""
-      ],
-      "datasourceTemplate": "pypi",
-      "versioningTemplate": "pep440"
-    }
-  ],
-  "constraints": {
-    "python": "3.13"
-  },
-  "vulnerabilityAlerts": {
-    "labels": ["security"],
-    "assignees": ["beelzer"],
-    "reviewers": ["beelzer"],
-    "enabled": true
-  },
-  "semanticCommits": "enabled",
-  "semanticCommitType": "chore",
-  "semanticCommitScope": "deps",
-  "commitMessagePrefix": "",
-  "commitMessageAction": "update",
-  "commitMessageTopic": "dependency {{depName}}",
-  "commitMessageExtra": "to {{newVersion}}",
-  "rebaseWhen": "behind-base-branch",
-  "rangeStrategy": "auto",
-  "lockFileMaintenance": {
-    "enabled": true,
-    "schedule": ["before 6am on monday"],
-    "commitMessageAction": "update",
-    "commitMessageTopic": "lock file",
-    "prBodyDefinitions": {
-      "Change": "All locks refreshed"
-    }
-  },
-  "postUpgradeTasks": {
-    "commands": [
-      "uv lock --upgrade-package {{depName}}"
-    ],
-    "fileFilters": ["uv.lock"],
-    "executionMode": "branch"
-  }
+  "prConcurrentLimit": 3,
+  "prHourlyLimit": 2,
+  "automerge": false
 }
