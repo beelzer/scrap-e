@@ -31,7 +31,7 @@
       "description": "Group Python development dependencies",
       "matchDepTypes": ["devDependencies"],
       "matchManagers": ["pip_requirements", "pep621"],
-      "matchPackageNames": ["pytest*", "ruff", "mypy", "black", "isort", "pre-commit", "ipython"],
+      "matchPackageNames": ["pytest*", "ruff", "mypy", "isort", "pre-commit", "ipython"],
       "groupName": "python-dev-dependencies",
       "groupSlug": "python-dev"
     },

@@ -75,13 +75,13 @@ jobs:
       - name: 🎨 Run Ruff linter
         run: |
           ruff check src/ tests/ --output-format=github
+
+      - name: 🎨 Run Ruff formatter
+        run: |
           ruff format src/ tests/ --check
 
       - name: 🔍 Run isort
         run: isort src/ tests/ --check-only --diff
-
-      - name: 🖤 Run Black formatter
-        run: black src/ tests/ --check --verbose
 
       - name: 📊 Generate lint report
         if: always()

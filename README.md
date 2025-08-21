@@ -7,7 +7,6 @@
 [![Python Version](https://img.shields.io/pypi/pyversions/scrap-e)](https://pypi.org/project/scrap-e/)
 [![PyPI - Version](https://img.shields.io/pypi/v/scrap-e)](https://pypi.org/project/scrap-e/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![security: bandit](https://img.shields.io/badge/security-bandit-yellow.svg)](https://github.com/PyCQA/bandit)
 [![Pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
@@ -364,7 +363,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 We maintain high code quality standards:
 
 - **Testing**: Minimum 80% code coverage
-- **Linting**: Ruff, Black, isort, MyPy
+- **Linting**: Ruff (linting & formatting), isort, MyPy
 - **Security**: Bandit, Safety, pip-audit
 - **Documentation**: All public APIs documented
 - **Type Hints**: Full type annotations
