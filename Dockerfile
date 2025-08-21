@@ -42,9 +42,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     wget \
     ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && playwright install chromium firefox webkit \
-    && playwright install-deps
+    && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
 RUN useradd -m -u 1000 scraper && \
