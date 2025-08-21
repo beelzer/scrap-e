@@ -223,11 +223,11 @@ class BaseScraper[T: BaseModel, ConfigT: ScraperConfig](ABC):
             chunk_size=chunk_size,
         )
 
-        async for chunk in await self._stream_scrape(source, chunk_size, **kwargs):
+        async for chunk in self._stream_scrape(source, chunk_size, **kwargs):
             yield chunk
 
     @abstractmethod
-    async def _stream_scrape(
+    def _stream_scrape(
         self,
         source: str,
         chunk_size: int,
@@ -279,7 +279,9 @@ class BaseScraper[T: BaseModel, ConfigT: ScraperConfig](ABC):
     def get_stats(self) -> ScraperStats:
         """Get current scraper statistics."""
         if self.stats.total_requests > 0:
-            self.stats.average_response_time = self.stats.total_duration / self.stats.total_requests
+            self.stats.average_response_time = (
+                self.stats.total_duration / self.stats.total_requests
+            )
         return self.stats
 
     def reset_stats(self) -> None:

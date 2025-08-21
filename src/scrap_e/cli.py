@@ -65,7 +65,11 @@ def cli(ctx: click.Context, config: str | None, debug: bool) -> None:
             structlog.processors.TimeStamper(fmt="iso"),
             structlog.processors.StackInfoRenderer(),
             structlog.processors.format_exc_info,
-            (structlog.dev.ConsoleRenderer() if debug else structlog.processors.JSONRenderer()),
+            (
+                structlog.dev.ConsoleRenderer()
+                if debug
+                else structlog.processors.JSONRenderer()
+            ),
         ],
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
@@ -199,7 +203,9 @@ def scrape(
             # Simple CSV conversion for extracted data
             if result.data and result.data.extracted_data:
                 buffer = StringIO()
-                writer = csv.DictWriter(buffer, fieldnames=result.data.extracted_data.keys())
+                writer = csv.DictWriter(
+                    buffer, fieldnames=result.data.extracted_data.keys()
+                )
                 writer.writeheader()
                 writer.writerow(result.data.extracted_data)
                 output_data = buffer.getvalue()
@@ -312,17 +318,23 @@ def batch(
         for i, result in enumerate(results):
             if result.success:
                 file_path = output_path / f"result_{i}.json"
-                file_path.write_text(json.dumps(result.model_dump(), indent=2, default=str))
+                file_path.write_text(
+                    json.dumps(result.model_dump(), indent=2, default=str)
+                )
 
         console.print(f"[green]OK[/green] Results saved to {output_dir}")
 
 
-async def _batch_scrape(urls: list[str], method: str, config: ScraperConfig) -> list[Any]:
+async def _batch_scrape(
+    urls: list[str], method: str, config: ScraperConfig
+) -> list[Any]:
     """Async function to scrape multiple URLs."""
     # Convert base config to WebScraperConfig
     web_config = WebScraperConfig(**config.model_dump())
 
-    scraper = BrowserScraper(web_config) if method == "browser" else HttpScraper(web_config)
+    scraper = (
+        BrowserScraper(web_config) if method == "browser" else HttpScraper(web_config)
+    )
 
     async with scraper.session() as s:
         return await s.scrape_multiple(urls)
@@ -374,7 +386,9 @@ def sitemap(
         results = asyncio.run(_batch_scrape(urls, "http", config))
 
         success_count = sum(1 for r in results if r.success)
-        console.print(f"[green]OK[/green] Successfully scraped {success_count}/{len(urls)} URLs")
+        console.print(
+            f"[green]OK[/green] Successfully scraped {success_count}/{len(urls)} URLs"
+        )
 
 
 async def _extract_sitemap(sitemap_url: str, config: ScraperConfig) -> list[str]:
@@ -414,7 +428,9 @@ def doctor() -> None:
     checks = []
 
     # Check Python version
-    py_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    py_version = (
+        f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    )
     checks.append(("Python Version", py_version, sys.version_info >= (3, 13)))
 
     # Check important packages

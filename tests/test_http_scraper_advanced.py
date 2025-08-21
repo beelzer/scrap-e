@@ -64,7 +64,9 @@ class TestHttpScraperAdvanced:
         with patch.object(http_scraper, "_client") as mock_client:
             mock_client.request = AsyncMock(return_value=mock_response)
 
-            result = await http_scraper._scrape("https://example.com", extraction_rules=rules)
+            result = await http_scraper._scrape(
+                "https://example.com", extraction_rules=rules
+            )
 
             assert result.extracted_data is not None
             assert result.extracted_data["title"] == "Product Title"
@@ -72,7 +74,9 @@ class TestHttpScraperAdvanced:
             assert result.extracted_data["description"] == "Great product"
 
     @pytest.mark.asyncio
-    async def test_scrape_with_stored_extraction_rules(self, http_scraper, mock_response):
+    async def test_scrape_with_stored_extraction_rules(
+        self, http_scraper, mock_response
+    ):
         """Test scraping with stored extraction rules."""
         mock_response.text = "<html><body><h1>Title</h1></body></html>"
 
@@ -209,7 +213,9 @@ class TestHttpScraperAdvanced:
         http_scraper._client = Mock()
         http_scraper._client.request = AsyncMock(return_value=mock_response)
 
-        request = HttpRequest(url="https://example.com", method="POST", json_data={"key": "value"})
+        request = HttpRequest(
+            url="https://example.com", method="POST", json_data={"key": "value"}
+        )
 
         await http_scraper._make_request(request)
 
@@ -278,7 +284,9 @@ class TestHttpScraperAdvanced:
         mock_client.stream = Mock(return_value=mock_stream)
 
         results = []
-        async for data in http_scraper._stream_scrape("https://example.com", chunk_size=1024):
+        async for data in http_scraper._stream_scrape(
+            "https://example.com", chunk_size=1024
+        ):
             results.append(data)
 
         # Should yield partial results every 10 chunks + final chunk
@@ -298,7 +306,9 @@ class TestHttpScraperAdvanced:
 
         await http_scraper._validate_source("https://example.com")
 
-        mock_client.head.assert_called_once_with("https://example.com", follow_redirects=True)
+        mock_client.head.assert_called_once_with(
+            "https://example.com", follow_redirects=True
+        )
 
     @pytest.mark.asyncio
     async def test_validate_source_failure(self):
@@ -330,13 +340,17 @@ class TestHttpScraperAdvanced:
             ),
         )
 
-        next_url = await http_scraper._get_next_page("https://example.com/page1", result, 1)
+        next_url = await http_scraper._get_next_page(
+            "https://example.com/page1", result, 1
+        )
         assert next_url == "https://example.com/page2"
 
     @pytest.mark.asyncio
     async def test_get_next_page_from_selector(self, http_scraper):
         """Test getting next page from CSS selector."""
-        http_scraper.config.pagination = PaginationConfig(enabled=True, next_page_selector="a.next")
+        http_scraper.config.pagination = PaginationConfig(
+            enabled=True, next_page_selector="a.next"
+        )
 
         result = ScraperResult(
             success=True,
@@ -351,7 +365,9 @@ class TestHttpScraperAdvanced:
             ),
         )
 
-        next_url = await http_scraper._get_next_page("https://example.com/page1", result, 1)
+        next_url = await http_scraper._get_next_page(
+            "https://example.com/page1", result, 1
+        )
         assert next_url == "https://example.com/page2"
 
     @pytest.mark.asyncio
@@ -363,13 +379,17 @@ class TestHttpScraperAdvanced:
 
         result = ScraperResult(
             success=True,
-            data=WebPageData(url="https://example.com/page/1", status_code=200, headers={}),
+            data=WebPageData(
+                url="https://example.com/page/1", status_code=200, headers={}
+            ),
             metadata=ScraperMetadata(
                 scraper_type=ScraperType.WEB_HTTP, source="https://example.com/page/1"
             ),
         )
 
-        next_url = await http_scraper._get_next_page("https://example.com/page/1", result, 1)
+        next_url = await http_scraper._get_next_page(
+            "https://example.com/page/1", result, 1
+        )
         assert next_url == "https://example.com/page/2"
 
     @pytest.mark.asyncio
@@ -436,7 +456,9 @@ class TestHttpScraperAdvanced:
 
         mock_client.get = AsyncMock(side_effect=responses)
 
-        urls = await http_scraper.scrape_sitemap("https://example.com/sitemap_index.xml")
+        urls = await http_scraper.scrape_sitemap(
+            "https://example.com/sitemap_index.xml"
+        )
 
         assert len(urls) == 1
         assert "https://example.com/page1" in urls
@@ -459,10 +481,14 @@ class TestHttpScraperAdvanced:
         mock_response2.raise_for_status = Mock()
 
         with patch.object(http_scraper, "_client") as mock_client:
-            mock_client.request = AsyncMock(side_effect=[mock_response1, mock_response2])
+            mock_client.request = AsyncMock(
+                side_effect=[mock_response1, mock_response2]
+            )
 
             urls = ["https://example.com/page1", "https://example.com/page2"]
-            results = await http_scraper.scrape_with_session(urls, {"initial": "cookie"})
+            results = await http_scraper.scrape_with_session(
+                urls, {"initial": "cookie"}
+            )
 
             assert len(results) == 2
             assert all(r.success for r in results)
@@ -477,7 +503,9 @@ class TestHttpScraperAdvanced:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.text = "Page"
-        mock_response.headers = {"set-cookie": "key1=value1; path=/, key2=value2; secure"}
+        mock_response.headers = {
+            "set-cookie": "key1=value1; path=/, key2=value2; secure"
+        }
         mock_response.url = "https://example.com"
         mock_response.raise_for_status = Mock()
 
@@ -493,7 +521,9 @@ class TestHttpScraperAdvanced:
     async def test_scrape_error_handling(self, http_scraper):
         """Test error handling during scraping."""
         with patch.object(http_scraper, "_client") as mock_client:
-            mock_client.request = AsyncMock(side_effect=httpx.HTTPError("Connection failed"))
+            mock_client.request = AsyncMock(
+                side_effect=httpx.HTTPError("Connection failed")
+            )
 
             with pytest.raises(ConnectionError) as exc_info:
                 await http_scraper._scrape("https://example.com")
@@ -536,7 +566,9 @@ class TestHttpScraperAdvanced:
         mock_response.status_code = 200
         mock_response.headers = {}
 
-        result = await http_scraper._parse_response(mock_response, "https://example.com")
+        result = await http_scraper._parse_response(
+            mock_response, "https://example.com"
+        )
 
         assert result.content == ""
         assert result.metadata is None

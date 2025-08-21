@@ -46,12 +46,16 @@ class TestHtmlParserAdvanced:
         assert result == "Title"
 
         # Multiple elements
-        rule_multi = ExtractionRule(name="items", selector="div.items span", multiple=True)
+        rule_multi = ExtractionRule(
+            name="items", selector="div.items span", multiple=True
+        )
         result = parser.extract_with_rule(rule_multi)
         assert result == ["Item 1", "Item 2"]
 
         # Non-existent element with default
-        rule_default = ExtractionRule(name="missing", selector=".nonexistent", default="N/A")
+        rule_default = ExtractionRule(
+            name="missing", selector=".nonexistent", default="N/A"
+        )
         result = parser.extract_with_rule(rule_default)
         assert result == "N/A"
 
@@ -230,7 +234,9 @@ class TestHtmlParserAdvanced:
         parser = HtmlParser(html)
 
         # Int transform
-        rule_int = ExtractionRule(name="quantity", selector=".quantity", transform="int")
+        rule_int = ExtractionRule(
+            name="quantity", selector=".quantity", transform="int"
+        )
         result = parser.extract_with_rule(rule_int)
         assert result == 100
 
@@ -240,12 +246,16 @@ class TestHtmlParserAdvanced:
         assert result == 1234.56
 
         # Invalid int
-        rule_invalid_int = ExtractionRule(name="invalid", selector=".invalid", transform="int")
+        rule_invalid_int = ExtractionRule(
+            name="invalid", selector=".invalid", transform="int"
+        )
         result = parser.extract_with_rule(rule_invalid_int)
         assert result == 0
 
         # Invalid float
-        rule_invalid_float = ExtractionRule(name="invalid", selector=".invalid", transform="float")
+        rule_invalid_float = ExtractionRule(
+            name="invalid", selector=".invalid", transform="float"
+        )
         result = parser.extract_with_rule(rule_invalid_float)
         assert result == 0.0
 
@@ -338,7 +348,9 @@ class TestHtmlParserAdvanced:
         assert result == "N/A"
 
         # Out of bounds array index
-        rule_oob = ExtractionRule(name="oob", json_path="nested.array.10.value", default="N/A")
+        rule_oob = ExtractionRule(
+            name="oob", json_path="nested.array.10.value", default="N/A"
+        )
         result = parser.extract_with_rule(rule_oob)
         assert result == "N/A"
 
@@ -534,7 +546,9 @@ class TestHtmlParserAdvanced:
         parser = HtmlParser(html)
 
         # Extract attribute via XPath
-        rule = ExtractionRule(name="value", xpath="//div[@id='content']", attribute="data-value")
+        rule = ExtractionRule(
+            name="value", xpath="//div[@id='content']", attribute="data-value"
+        )
         result = parser.extract_with_rule(rule)
         assert result == "test123"
 
@@ -576,7 +590,9 @@ class TestHtmlParserAdvanced:
         assert result == "item2"
 
         # Invalid path on array returns default
-        rule_invalid = ExtractionRule(name="invalid", json_path="key.value", default="N/A")
+        rule_invalid = ExtractionRule(
+            name="invalid", json_path="key.value", default="N/A"
+        )
         result = parser.extract_with_rule(rule_invalid)
         # When JSON path fails, it returns the default
         assert result == "N/A" or result is None

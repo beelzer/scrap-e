@@ -113,7 +113,9 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
             page = await self._context.new_page()
 
             # Set up monitoring
-            console_logs, network_requests = await self._setup_page_monitoring(page, **kwargs)
+            console_logs, network_requests = await self._setup_page_monitoring(
+                page, **kwargs
+            )
 
             # Load and prepare page
             await self._load_page(page, source, **kwargs)
@@ -122,7 +124,9 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
             page_data = await self._extract_page_data(page, source)
 
             # Enhance page data with additional info
-            await self._enhance_page_data(page_data, page, console_logs, network_requests, **kwargs)
+            await self._enhance_page_data(
+                page_data, page, console_logs, network_requests, **kwargs
+            )
 
             return page_data
 
@@ -134,7 +138,9 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
             if page:
                 await page.close()
 
-    async def _setup_page_monitoring(self, page: Page, **kwargs: Any) -> tuple[list, list]:
+    async def _setup_page_monitoring(
+        self, page: Page, **kwargs: Any
+    ) -> tuple[list[Any], list[Any]]:
         """Set up console and network monitoring."""
         console_logs = []
         network_requests = []
@@ -173,8 +179,8 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
         self,
         page_data: BrowserPageData,
         page: Page,
-        console_logs: list,
-        network_requests: list,
+        console_logs: list[Any],
+        network_requests: list[Any],
         **kwargs: Any,
     ) -> None:
         """Add additional data to page_data."""
@@ -189,25 +195,35 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
             page_data.network_requests = network_requests
 
         # Get cookies
-        page_data.cookies = await self._context.cookies()
+        if self._context:
+            cookies = await self._context.cookies()
+            page_data.cookies = [dict(c) for c in cookies] if cookies else None
 
         # Apply extraction rules
         if self.extraction_rules or kwargs.get("extraction_rules"):
             rules = kwargs.get("extraction_rules", self.extraction_rules)
             page_data.extracted_data = await self._extract_data_from_page(page, rules)
 
-    async def _handle_scrape_error(self, error: Exception, page: Page | None, source: str) -> None:
+    async def _handle_scrape_error(
+        self, error: Exception, page: Page | None, source: str
+    ) -> None:
         """Handle scraping errors."""
         if self.config.browser_screenshot_on_error and page:
             try:
                 screenshot = await page.screenshot(full_page=True)
-                error_path = Path(self.config.temp_dir) / f"error_{source.replace('/', '_')}.png"
+                error_path = (
+                    Path(self.config.temp_dir) / f"error_{source.replace('/', '_')}.png"
+                )
                 error_path.write_bytes(screenshot)
                 self.logger.error(f"Error screenshot saved to {error_path}")
             except Exception as screenshot_error:
-                self.logger.debug(f"Failed to capture error screenshot: {screenshot_error!s}")
+                self.logger.debug(
+                    f"Failed to capture error screenshot: {screenshot_error!s}"
+                )
 
-        raise ScraperError(f"Browser scraping failed: {error!s}", {"url": source}) from error
+        raise ScraperError(
+            f"Browser scraping failed: {error!s}", {"url": source}
+        ) from error
 
     async def _navigate_to_page(self, page: Page, url: str, **kwargs: Any) -> None:
         """Navigate to a URL with proper wait conditions."""
@@ -217,13 +233,19 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
         try:
             await page.goto(url, wait_until=wait_until, timeout=timeout)
         except Exception as e:
-            raise ConnectionError(f"Failed to navigate to {url}: {e!s}", {"url": url}) from e
+            raise ConnectionError(
+                f"Failed to navigate to {url}: {e!s}", {"url": url}
+            ) from e
 
     async def _wait_for_content(self, page: Page, **kwargs: Any) -> None:
         """Wait for content to load based on configuration."""
         # Wait for specific selector if provided
-        if wait_selector := (kwargs.get("wait_for_selector") or self.config.wait_for_selector):
-            timeout = kwargs.get("wait_for_timeout", self.config.wait_for_timeout) * 1000
+        if wait_selector := (
+            kwargs.get("wait_for_selector") or self.config.wait_for_selector
+        ):
+            timeout = (
+                kwargs.get("wait_for_timeout", self.config.wait_for_timeout) * 1000
+            )
             try:
                 await page.wait_for_selector(wait_selector, timeout=timeout)
             except Exception:
@@ -309,6 +331,8 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
 
     async def _extract_with_selector(self, page: Page, rule: ExtractionRule) -> Any:
         """Extract data using CSS selector."""
+        if not rule.selector:
+            return rule.default
         elements = await page.query_selector_all(rule.selector)
 
         if not elements:
@@ -371,11 +395,16 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
         if not self._context:
             await self._initialize()
 
+        if not self._context:
+            raise ScraperError("Browser context not initialized")
+
         page = await self._context.new_page()
         try:
             response = await page.goto(source, wait_until="domcontentloaded")
             if response and response.status >= 400:
-                raise ConnectionError(f"URL returned status {response.status}", {"url": source})
+                raise ConnectionError(
+                    f"URL returned status {response.status}", {"url": source}
+                )
         finally:
             await page.close()
 
@@ -391,7 +420,8 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
 
         # Check for next page in extracted data
         if result.data.extracted_data and "next_page_url" in result.data.extracted_data:
-            return result.data.extracted_data["next_page_url"]
+            next_url = result.data.extracted_data["next_page_url"]
+            return next_url if isinstance(next_url, str) else None
 
         # Check pagination config
         if (
@@ -400,9 +430,13 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
             and result.data.content
         ):
             parser = HtmlParser(result.data.content)
-            next_link = parser.soup.select_one(self.config.pagination.next_page_selector)
+            next_link = parser.soup.select_one(
+                self.config.pagination.next_page_selector
+            )
             if next_link and next_link.get("href"):
-                return urljoin(current_source, next_link["href"])
+                href = next_link.get("href")
+                if isinstance(href, str):
+                    return urljoin(current_source, href)
 
         return None
 
@@ -412,6 +446,9 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
         """Scrape a Single Page Application by navigating through routes."""
         if not self._context:
             await self._initialize()
+
+        if not self._context:
+            raise ScraperError("Browser context not initialized")
 
         results = []
         page = await self._context.new_page()
@@ -448,6 +485,9 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
         if not self._context:
             await self._initialize()
 
+        if not self._context:
+            raise ScraperError("Browser context not initialized")
+
         page = await self._context.new_page()
 
         try:
@@ -468,7 +508,9 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
 
                 # Check if we've reached the end
                 if new_height == prev_height:
-                    self.logger.info(f"Reached end of infinite scroll after {i + 1} scrolls")
+                    self.logger.info(
+                        f"Reached end of infinite scroll after {i + 1} scrolls"
+                    )
                     break
 
             # Extract final page data
@@ -495,6 +537,9 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
         if not self._context:
             await self._initialize()
 
+        if not self._context:
+            raise ScraperError("Browser context not initialized")
+
         page = await self._context.new_page()
 
         try:
@@ -506,15 +551,15 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
                 action = interaction.get("action")
                 selector = interaction.get("selector")
 
-                if action == "click":
+                if action == "click" and selector:
                     await page.click(selector)
-                elif action == "fill":
+                elif action == "fill" and selector:
                     value = interaction.get("value", "")
                     await page.fill(selector, value)
-                elif action == "select":
+                elif action == "select" and selector:
                     value = interaction.get("value", "")
                     await page.select_option(selector, value)
-                elif action == "hover":
+                elif action == "hover" and selector:
                     await page.hover(selector)
                 elif action == "wait":
                     wait_time = interaction.get("time", 1)

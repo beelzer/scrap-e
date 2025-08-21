@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup, Tag
 from lxml import html
 
 try:
-    from selectolax.parser import HTMLParser  # type: ignore[import-not-found]
+    from selectolax.parser import HTMLParser
 
     SELECTOLAX_AVAILABLE = True
 except ImportError:
@@ -79,7 +79,9 @@ class HtmlParser:
             raise ParsingError(f"No extraction method specified in rule: {rule.name}")
         except Exception as e:
             if rule.required:
-                raise ParsingError(f"Failed to extract required field '{rule.name}': {e!s}") from e
+                raise ParsingError(
+                    f"Failed to extract required field '{rule.name}': {e!s}"
+                ) from e
             return rule.default
 
     def _extract_css(self, rule: ExtractionRule) -> Any:
@@ -146,7 +148,11 @@ class HtmlParser:
 
     def _extract_element_data(self, element: Tag, rule: ExtractionRule) -> Any:
         """Extract data from a BeautifulSoup element."""
-        value = element.get(rule.attribute) if rule.attribute else element.get_text(strip=True)
+        value = (
+            element.get(rule.attribute)
+            if rule.attribute
+            else element.get_text(strip=True)
+        )
 
         if rule.transform:
             value = self._apply_transform(value, rule.transform)
@@ -288,8 +294,12 @@ class HtmlParser:
                 links.append(
                     {
                         "url": href,
-                        "text": link.get_text(strip=True) if isinstance(link, Tag) else "",
-                        "title": str(link.get("title", "")) if isinstance(link, Tag) else "",
+                        "text": (
+                            link.get_text(strip=True) if isinstance(link, Tag) else ""
+                        ),
+                        "title": (
+                            str(link.get("title", "")) if isinstance(link, Tag) else ""
+                        ),
                     }
                 )
 
@@ -336,7 +346,7 @@ class HtmlParser:
             for input_elem in form.find_all(["input", "select", "textarea"]):
                 if not isinstance(input_elem, Tag):
                     continue
-                input_data = {
+                input_data: dict[str, Any] = {
                     "type": (
                         str(input_elem.get("type", "text"))
                         if input_elem.name == "input"
@@ -351,13 +361,15 @@ class HtmlParser:
 
                 # For select elements, get options
                 if input_elem.name == "select":
-                    options = [
-                        {
-                            "value": option.get("value", option.text),
-                            "text": option.text,
-                        }
-                        for option in input_elem.find_all("option")
-                    ]
+                    options = []
+                    for option in input_elem.find_all("option"):
+                        if isinstance(option, Tag):
+                            options.append(
+                                {
+                                    "value": option.get("value", option.text),
+                                    "text": option.text,
+                                }
+                            )
                     input_data["options"] = options
 
                 form_data["inputs"].append(input_data)
@@ -389,10 +401,12 @@ class HtmlParser:
 
         # Extract headers
         thead = table.find("thead")
-        if thead:
+        if thead and isinstance(thead, Tag):
             header_row = thead.find("tr")
             if header_row and isinstance(header_row, Tag):
-                headers = [th.get_text(strip=True) for th in header_row.find_all(["th", "td"])]
+                headers = [
+                    th.get_text(strip=True) for th in header_row.find_all(["th", "td"])
+                ]
         else:
             # Try to find headers in first row
             first_row = table.find("tr")
@@ -403,13 +417,12 @@ class HtmlParser:
         tbody = table.find("tbody") or table
         if isinstance(tbody, Tag):
             for tr in tbody.find_all("tr"):
+                if not isinstance(tr, Tag):
+                    continue
                 # Skip header row if it contains th elements
                 if tr.find("th") and not tbody:
                     continue
-                if isinstance(tr, Tag):
-                    row = [td.get_text(strip=True) for td in tr.find_all(["td", "th"])]
-                else:
-                    continue
+                row = [td.get_text(strip=True) for td in tr.find_all(["td", "th"])]
                 if row:  # Only add non-empty rows
                     rows.append(row)
 
@@ -425,7 +438,7 @@ class HtmlParser:
         # Strip leading/trailing whitespace
         return text.strip()
 
-    def extract_tables(self) -> list[list[dict[str, Any]]]:
+    def extract_tables(self) -> list[list[dict[str, Any] | list[Any]]]:
         """Extract all tables as structured data."""
         tables = []
 
@@ -433,14 +446,17 @@ class HtmlParser:
             if not isinstance(table, Tag):
                 continue
             headers = []
-            rows = []
+            rows: list[dict[str, Any] | list[Any]] = []
 
             # Extract headers
             thead = table.find("thead")
             if thead and isinstance(thead, Tag):
                 header_row = thead.find("tr")
                 if header_row and isinstance(header_row, Tag):
-                    headers = [th.get_text(strip=True) for th in header_row.find_all(["th", "td"])]
+                    headers = [
+                        th.get_text(strip=True)
+                        for th in header_row.find_all(["th", "td"])
+                    ]
 
             # If no thead, try first row
             if not headers:
@@ -459,7 +475,8 @@ class HtmlParser:
                     cells = tr.find_all(["td", "th"])
                     if headers and len(cells) == len(headers):
                         row: dict[str, Any] | list[Any] = {
-                            headers[i]: cell.get_text(strip=True) for i, cell in enumerate(cells)
+                            headers[i]: cell.get_text(strip=True)
+                            for i, cell in enumerate(cells)
                         }
                     else:
                         row = [cell.get_text(strip=True) for cell in cells]

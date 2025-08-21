@@ -146,7 +146,9 @@ class ExtractionRule(BaseModel):
 
     @field_validator("selector", "xpath", "regex", "json_path")
     @classmethod
-    def validate_extraction_method(cls, v: str | None, info: ValidationInfo) -> str | None:
+    def validate_extraction_method(
+        cls, v: str | None, info: ValidationInfo
+    ) -> str | None:
         if v is None:
             return v
         field_name = info.field_name
@@ -200,7 +202,9 @@ class RetryConfig(BaseModel):
     max_delay: float = 60.0
     exponential_base: float = 2.0
     jitter: bool = True
-    retry_on_status_codes: list[int] = Field(default_factory=lambda: [429, 500, 502, 503, 504])
+    retry_on_status_codes: list[int] = Field(
+        default_factory=lambda: [429, 500, 502, 503, 504]
+    )
 
 
 class ProxyConfig(BaseModel):
