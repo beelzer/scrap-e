@@ -6,7 +6,7 @@
 [![codecov](https://codecov.io/gh/beelzer/scrap-e/branch/main/graph/badge.svg?token=YOUR_TOKEN)](https://codecov.io/gh/beelzer/scrap-e)
 [![Python Version](https://img.shields.io/pypi/pyversions/scrap-e)](https://pypi.org/project/scrap-e/)
 [![PyPI - Version](https://img.shields.io/pypi/v/scrap-e)](https://pypi.org/project/scrap-e/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![security: bandit](https://img.shields.io/badge/security-bandit-yellow.svg)](https://github.com/PyCQA/bandit)
 [![Pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)

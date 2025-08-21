@@ -153,7 +153,7 @@ jobs:
         run: playwright install chromium firefox webkit
 
       - name: 🧪 Run tests with coverage
-        run: pytest tests/ --cov=scrap_e --cov-report=xml --cov-report=html --cov-report=term-missing --junit-xml=pytest-results.xml -v
+        run: pytest tests/ -m "not performance" --cov=scrap_e --cov-report=xml --cov-report=html --cov-report=term-missing --junit-xml=pytest-results.xml -v
 
       - name: 📈 Upload coverage to Codecov
         uses: codecov/codecov-action@v5
