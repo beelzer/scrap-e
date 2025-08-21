@@ -248,7 +248,7 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
         """
         )
 
-    async def _extract_page_data(self, page: Page, url: str) -> BrowserPageData:  # noqa: ARG002
+    async def _extract_page_data(self, page: Page, _url: str) -> BrowserPageData:
         """Extract data from the browser page."""
         # Get page content
         content = await page.content()
@@ -366,7 +366,7 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
         # For browser scraping, we'll yield page data as we navigate through pages
         yield await self._scrape(source, **kwargs)
 
-    async def _validate_source(self, source: str, **kwargs: Any) -> None:  # noqa: ARG002
+    async def _validate_source(self, source: str, **_kwargs: Any) -> None:
         """Validate that a URL is accessible via browser."""
         if not self._context:
             await self._initialize()

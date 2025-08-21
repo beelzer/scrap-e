@@ -385,3 +385,6 @@ class PaginatedScraper(BaseScraper[T, ConfigT], ABC):
     ) -> str | None:
         """Get the source for the next page."""
         ...
+
+
+__all__ = ["BaseScraper", "BatchScraper", "PaginatedScraper"]

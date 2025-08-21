@@ -23,7 +23,9 @@
       "Bash(gh run view:*)",
       "Bash(bandit:*)",
       "Bash(mkdocs build:*)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(pip search:*)",
+      "Bash(scrap-e:*)"
     ],
     "deny": [],
     "ask": [],

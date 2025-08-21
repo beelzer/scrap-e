@@ -167,7 +167,7 @@ class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
         response.raise_for_status()
         return response
 
-    async def _parse_response(self, response: httpx.Response, url: str) -> WebPageData:  # noqa: ARG002
+    async def _parse_response(self, response: httpx.Response, _url: str) -> WebPageData:
         """Parse HTTP response into WebPageData."""
         content = response.text
 
@@ -259,7 +259,7 @@ class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
                     content=final_content,
                 )
 
-    async def _validate_source(self, source: str, **kwargs: Any) -> None:  # noqa: ARG002
+    async def _validate_source(self, source: str, **_kwargs: Any) -> None:
         """Validate that a URL is accessible."""
         if not self._client:
             await self._initialize()

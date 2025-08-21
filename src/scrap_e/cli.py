@@ -21,8 +21,11 @@ from scrap_e.scrapers.web.http_scraper import HttpScraper
 
 try:
     from playwright.sync_api import sync_playwright
+
+    PLAYWRIGHT_AVAILABLE = True
 except ImportError:
-    sync_playwright = None
+    sync_playwright = None  # type: ignore[assignment]
+    PLAYWRIGHT_AVAILABLE = False
 
 console = Console()
 logger = structlog.get_logger()
@@ -243,16 +246,16 @@ async def _scrape_url(
         scraper = BrowserScraper(web_config)
         scraper.extraction_rules = extraction_rules
 
-        kwargs = {}
+        kwargs: dict[str, Any] = {}
         if wait_for:
             kwargs["wait_for_selector"] = wait_for
         if screenshot:
-            kwargs["screenshot"] = True
+            kwargs["capture_screenshot"] = True
 
         return await scraper.scrape(url, **kwargs)
-    scraper = HttpScraper(web_config)
-    scraper.extraction_rules = extraction_rules
-    return await scraper.scrape(url)
+    http_scraper = HttpScraper(web_config)
+    http_scraper.extraction_rules = extraction_rules
+    return await http_scraper.scrape(url)
 
 
 @cli.command()
@@ -431,7 +434,7 @@ def doctor() -> None:
             checks.append((f"Package: {package}", "Not installed", False))
 
     # Check browser drivers
-    if sync_playwright:
+    if PLAYWRIGHT_AVAILABLE:
         try:
             with sync_playwright() as p:
                 for browser in ["chromium", "firefox", "webkit"]:

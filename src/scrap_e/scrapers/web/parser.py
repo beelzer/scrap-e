@@ -8,15 +8,17 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup, Tag
 from lxml import html
 
-if TYPE_CHECKING:
-    from selectolax.parser import HTMLParser
-
 try:
-    from selectolax.parser import HTMLParser
+    from selectolax.parser import HTMLParser  # type: ignore[import-not-found]
 
     SELECTOLAX_AVAILABLE = True
 except ImportError:
     SELECTOLAX_AVAILABLE = False
+    if TYPE_CHECKING:
+        # Dummy type for when selectolax is not available
+        class HTMLParser:  # type: ignore[no-redef]
+            pass
+
 
 from scrap_e.core.exceptions import ParsingError
 from scrap_e.core.models import ExtractionRule
@@ -126,7 +128,10 @@ class HtmlParser:
 
         for script in json_scripts:
             try:
-                data = json.loads(script.string)
+                if isinstance(script, Tag) and script.string:
+                    data = json.loads(script.string)
+                else:
+                    continue
                 # Apply JSON path if specified
                 if rule.json_path:
                     result = self._apply_json_path(data, rule.json_path)
@@ -224,8 +229,12 @@ class HtmlParser:
 
         # Meta tags
         for meta in self.soup.find_all("meta"):
-            name = meta.get("name", "").lower()
-            property = meta.get("property", "").lower()
+            if not isinstance(meta, Tag):
+                continue
+            name_attr = meta.get("name", "")
+            name = name_attr.lower() if isinstance(name_attr, str) else ""
+            prop_attr = meta.get("property", "")
+            property = prop_attr.lower() if isinstance(prop_attr, str) else ""
             content = meta.get("content", "")
 
             if name == "description":
@@ -253,7 +262,10 @@ class HtmlParser:
         json_scripts = self.soup.find_all("script", type="application/ld+json")
         for script in json_scripts:
             try:
-                data = json.loads(script.string)
+                if isinstance(script, Tag) and script.string:
+                    data = json.loads(script.string)
+                else:
+                    continue
                 metadata["schema_data"].append(data)
             except json.JSONDecodeError:
                 continue
@@ -264,17 +276,22 @@ class HtmlParser:
         """Extract all links from HTML."""
         links = []
         for link in self.soup.find_all("a", href=True):
-            href = link["href"]
-            if absolute_url:
+            if not isinstance(link, Tag):
+                continue
+            href = link.get("href")
+            if not href:
+                continue
+            if absolute_url and isinstance(href, str):
                 href = urljoin(absolute_url, href)
 
-            links.append(
-                {
-                    "url": href,
-                    "text": link.get_text(strip=True),
-                    "title": link.get("title", ""),
-                }
-            )
+            if isinstance(href, str):
+                links.append(
+                    {
+                        "url": href,
+                        "text": link.get_text(strip=True) if isinstance(link, Tag) else "",
+                        "title": str(link.get("title", "")) if isinstance(link, Tag) else "",
+                    }
+                )
 
         return links
 
@@ -282,17 +299,20 @@ class HtmlParser:
         """Extract all images from HTML."""
         images = []
         for img in self.soup.find_all("img"):
-            src = img.get("src", "")
+            if not isinstance(img, Tag):
+                continue
+            src_attr = img.get("src", "")
+            src = src_attr if isinstance(src_attr, str) else ""
             if absolute_url and src:
                 src = urljoin(absolute_url, src)
 
             images.append(
                 {
                     "src": src,
-                    "alt": img.get("alt", ""),
-                    "title": img.get("title", ""),
-                    "width": img.get("width", ""),
-                    "height": img.get("height", ""),
+                    "alt": str(img.get("alt", "")),
+                    "title": str(img.get("title", "")),
+                    "width": str(img.get("width", "")),
+                    "height": str(img.get("height", "")),
                 }
             )
 
@@ -303,18 +323,22 @@ class HtmlParser:
         forms = []
 
         for form in self.soup.find_all("form"):
-            form_data = {
-                "action": form.get("action", ""),
-                "method": form.get("method", "get").lower(),
+            if not isinstance(form, Tag):
+                continue
+            form_data: dict[str, Any] = {
+                "action": str(form.get("action", "")),
+                "method": str(form.get("method", "get")).lower(),
                 "id": form.get("id"),
                 "inputs": [],
             }
 
             # Extract all input fields
             for input_elem in form.find_all(["input", "select", "textarea"]):
+                if not isinstance(input_elem, Tag):
+                    continue
                 input_data = {
                     "type": (
-                        input_elem.get("type", "text")
+                        str(input_elem.get("type", "text"))
                         if input_elem.name == "input"
                         else input_elem.name
                     ),
@@ -352,7 +376,11 @@ class HtmlParser:
 
     def extract_all_tables(self) -> list[dict[str, Any]]:
         """Extract all tables from HTML."""
-        return [self._parse_table(table) for table in self.soup.find_all("table")]
+        return [
+            self._parse_table(table)
+            for table in self.soup.find_all("table")
+            if isinstance(table, Tag)
+        ]
 
     def _parse_table(self, table: Tag) -> dict[str, Any]:
         """Parse a table element into structured data."""
@@ -378,7 +406,10 @@ class HtmlParser:
                 # Skip header row if it contains th elements
                 if tr.find("th") and not tbody:
                     continue
-                row = [td.get_text(strip=True) for td in tr.find_all(["td", "th"])]
+                if isinstance(tr, Tag):
+                    row = [td.get_text(strip=True) for td in tr.find_all(["td", "th"])]
+                else:
+                    continue
                 if row:  # Only add non-empty rows
                     rows.append(row)
 
@@ -399,37 +430,42 @@ class HtmlParser:
         tables = []
 
         for table in self.soup.find_all("table"):
+            if not isinstance(table, Tag):
+                continue
             headers = []
             rows = []
 
             # Extract headers
             thead = table.find("thead")
-            if thead:
+            if thead and isinstance(thead, Tag):
                 header_row = thead.find("tr")
-                if header_row:
+                if header_row and isinstance(header_row, Tag):
                     headers = [th.get_text(strip=True) for th in header_row.find_all(["th", "td"])]
 
             # If no thead, try first row
             if not headers:
                 first_row = table.find("tr")
-                if first_row:
+                if first_row and isinstance(first_row, Tag):
                     potential_headers = first_row.find_all("th")
                     if potential_headers:
                         headers = [th.get_text(strip=True) for th in potential_headers]
 
             # Extract rows
             tbody = table.find("tbody") or table
-            for tr in tbody.find_all("tr"):
-                cells = tr.find_all(["td", "th"])
-                if headers and len(cells) == len(headers):
-                    row: dict[str, Any] | list[Any] = {
-                        headers[i]: cell.get_text(strip=True) for i, cell in enumerate(cells)
-                    }
-                else:
-                    row = [cell.get_text(strip=True) for cell in cells]
+            if isinstance(tbody, Tag):
+                for tr in tbody.find_all("tr"):
+                    if not isinstance(tr, Tag):
+                        continue
+                    cells = tr.find_all(["td", "th"])
+                    if headers and len(cells) == len(headers):
+                        row: dict[str, Any] | list[Any] = {
+                            headers[i]: cell.get_text(strip=True) for i, cell in enumerate(cells)
+                        }
+                    else:
+                        row = [cell.get_text(strip=True) for cell in cells]
 
-                if row:
-                    rows.append(row)
+                    if row:
+                        rows.append(row)
 
             if rows:
                 tables.append(rows)
