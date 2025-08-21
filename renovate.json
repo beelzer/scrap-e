@@ -6,10 +6,6 @@
     ":semanticCommits",
     ":autodetectPinVersions"
   ],
-  "username": "renovate-bot",
-  "gitAuthor": "Renovate Bot <bot@renovateapp.com>",
-  "platform": "github",
-  "repositories": ["beelzer/scrap-e"],
   "labels": ["dependencies"],
   "assignees": ["beelzer"],
   "reviewers": ["beelzer"],
@@ -80,16 +76,11 @@
       "description": "Update uv.lock for Python dependencies",
       "fileMatch": ["^uv\\.lock$"],
       "matchStrings": [
-        "name = \"(?<depName>(?!scrap-e)[^\"]+)\"\\s+version = \"(?<currentValue>[^\"]+)\""
+        "name = \"(?<depName>[^\"]+)\"\\s+version = \"(?<currentValue>[^\"]+)\""
       ],
       "datasourceTemplate": "pypi",
       "versioningTemplate": "pep440"
     }
-  ],
-  "postUpdateOptions": [
-    "gomodTidy",
-    "npmDedupe",
-    "yarnDedupeHighest"
   ],
   "constraints": {
     "python": "3.13"
