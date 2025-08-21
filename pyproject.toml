@@ -113,6 +113,12 @@ addopts = [
 testpaths = ["tests"]
 pythonpath = ["src"]
 asyncio_mode = "auto"
+markers = [
+    "performance: mark test as a performance benchmark",
+    "integration: mark test as an integration test",
+    "slow: mark test as slow running",
+    "benchmark: mark test as a benchmark test",
+]
 asyncio_default_fixture_loop_scope = "function"
 filterwarnings = [
     "ignore::DeprecationWarning:pydantic.*",
