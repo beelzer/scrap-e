@@ -78,7 +78,6 @@ dev = [
     "types-pyyaml",
     "types-redis",
     "lxml-stubs",
-    "isort==5.13.2",
     "pre-commit==4.1.0",
     "ipython==8.34.0",
 ]
@@ -209,9 +208,6 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
 
-[tool.isort]
-profile = "ruff"
-line_length = 100
 
 [tool.bandit]
 exclude_dirs = ["tests", ".venv", "venv", "build", "dist"]
@@ -222,7 +218,6 @@ skips = ["*/test_*.py", "*/tests/*.py"]
 
 [dependency-groups]
 dev = [
-    "isort>=5.13.2",
     "lxml-stubs>=0.5.1",
     "pandas-stubs>=2.3.0.250703",
     "pre-commit>=4.1.0",

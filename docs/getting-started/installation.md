@@ -47,8 +47,7 @@ pip install -e ".[dev]"
 This includes:
 - pytest for testing
 - mypy for type checking
-- ruff for linting and code formatting
-- isort for import sorting
+- ruff for linting, code formatting, and import sorting
 - pre-commit hooks
 
 ### Documentation

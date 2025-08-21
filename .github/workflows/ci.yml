@@ -72,16 +72,13 @@ jobs:
         run: |
           uv pip install --system -e ".[dev]"
 
-      - name: 🎨 Run Ruff linter
+      - name: 🎨 Run Ruff linter (includes import sorting)
         run: |
           ruff check src/ tests/ --output-format=github
 
       - name: 🎨 Run Ruff formatter
         run: |
           ruff format src/ tests/ --check
-
-      - name: 🔍 Run isort
-        run: isort src/ tests/ --check-only --diff
 
       - name: 📊 Generate lint report
         if: always()

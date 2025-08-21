@@ -363,7 +363,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 We maintain high code quality standards:
 
 - **Testing**: Minimum 80% code coverage
-- **Linting**: Ruff (linting & formatting), isort, MyPy
+- **Linting**: Ruff (linting, formatting & import sorting), MyPy
 - **Security**: Bandit, Safety, pip-audit
 - **Documentation**: All public APIs documented
 - **Type Hints**: Full type annotations
