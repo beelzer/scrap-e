@@ -330,7 +330,7 @@ class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
             sitemap_locs = root.xpath("//ns:sitemap/ns:loc", namespaces={"ns": root.nsmap[None]})
             if isinstance(sitemap_locs, list):
                 for sitemap in sitemap_locs:
-                    if hasattr(sitemap, "text") and sitemap.text:
+                    if isinstance(sitemap, etree._Element) and sitemap.text:
                         sitemap_urls.extend(await self.scrape_sitemap(sitemap.text))
             return sitemap_urls
 
@@ -339,7 +339,7 @@ class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
         urls = []
         if isinstance(url_locs, list):
             for url in url_locs:
-                if hasattr(url, "text") and url.text:
+                if isinstance(url, etree._Element) and url.text:
                     urls.append(url.text)
         return urls
 

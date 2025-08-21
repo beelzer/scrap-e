@@ -27,7 +27,9 @@
       "Bash(pip search:*)",
       "Bash(scrap-e:*)",
       "Bash(playwright install:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)"
     ],
     "deny": [],
     "ask": [],

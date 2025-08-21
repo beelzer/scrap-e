@@ -4,7 +4,14 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, ValidationInfo, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    HttpUrl,
+    ValidationInfo,
+    field_validator,
+)
 
 T = TypeVar("T")
 
