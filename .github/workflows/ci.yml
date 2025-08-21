@@ -61,7 +61,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
 
       - name: 📦 Install uv
         uses: astral-sh/setup-uv@v6
@@ -99,7 +98,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
 
       - name: 📦 Install uv
         uses: astral-sh/setup-uv@v6
@@ -141,7 +139,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: 'pip'
 
       - name: 📦 Install uv
         uses: astral-sh/setup-uv@v6
@@ -157,13 +154,6 @@ jobs:
 
       - name: 🧪 Run tests with coverage
         run: pytest tests/ --cov=scrap_e --cov-report=xml --cov-report=html --cov-report=term-missing --junit-xml=pytest-results.xml -v
-
-      - name: 📊 Generate test summary
-        if: always() && runner.os == 'Linux'
-        uses: EnricoMi/publish-unit-test-result-action@v2
-        with:
-          files: pytest-results.xml
-          check_name: Test Results - ${{ matrix.os }} Python ${{ matrix.python-version }}
 
       - name: 📈 Upload coverage to Codecov
         uses: codecov/codecov-action@v5
@@ -229,7 +219,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
 
       - name: 📦 Install uv
         uses: astral-sh/setup-uv@v6
@@ -264,7 +253,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
 
       - name: 📦 Install uv
         uses: astral-sh/setup-uv@v6
