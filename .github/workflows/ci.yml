@@ -269,7 +269,7 @@ jobs:
         run: |
           pytest tests/ -m performance --benchmark-only --benchmark-json=benchmark.json || {
             echo "No performance tests found (exit code $?)"
-            echo '{}' > benchmark.json
+            echo '{"benchmarks": []}' > benchmark.json
           }
 
       - name: 📊 Store benchmark result
@@ -379,6 +379,9 @@ jobs:
     needs: [test]
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v5
