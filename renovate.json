@@ -5,7 +5,7 @@
   ],
   "packageRules": [
     {
-      "matchManagers": ["pip_requirements", "pip_setup", "pipenv", "poetry", "pyproject"],
+      "matchManagers": ["pip_requirements", "pip_setup", "pipenv", "poetry", "pep621"],
       "enabled": true
     }
   ],
