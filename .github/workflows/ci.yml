@@ -49,7 +49,6 @@ env:
   GIT_TERMINAL_PROMPT: '0'
   # Performance: Optimize pip
   PIP_NO_CACHE_DIR: 'false'
-  PIP_DISABLE_PIP_VERSION_CHECK: '1'
   # Better error messages
   PYTHONUTF8: '1'
   PYTHONIOENCODING: 'utf-8'
