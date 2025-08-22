@@ -29,7 +29,8 @@
       "Bash(playwright install:*)",
       "Bash(grep:*)",
       "WebSearch",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(/dev/null)"
     ],
     "deny": [],
     "ask": [],

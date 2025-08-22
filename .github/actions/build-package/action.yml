@@ -1,0 +1,103 @@
+name: 'Build Python Package'
+description: 'Builds Python distribution packages'
+inputs:
+  check-package:
+    description: 'Check package with twine'
+    required: false
+    default: 'true'
+
+outputs:
+  package-name:
+    description: 'Name of the built package'
+    value: ${{ steps.metadata.outputs.name }}
+  package-version:
+    description: 'Version of the built package'
+    value: ${{ steps.metadata.outputs.version }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install build tools
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "::group::Installing build tools"
+        uv pip install build twine wheel setuptools pkginfo
+        echo "::endgroup::"
+
+    - name: Build distribution packages
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "::group::Building distribution packages"
+        python -m build --sdist --wheel --outdir dist/
+        echo "Distribution files created:"
+        ls -la dist/
+        echo "::endgroup::"
+
+    - name: Check package with twine
+      if: inputs.check-package == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "::group::Checking package with twine"
+        if twine check --strict dist/*; then
+          echo "::notice::Package validation passed"
+        else
+          echo "::error::Package validation failed"
+          exit 1
+        fi
+        echo "::endgroup::"
+
+    - name: Extract package metadata
+      id: metadata
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "::group::Extracting package metadata"
+        wheel_file=$(ls dist/*.whl 2>/dev/null | head -n1 || true)
+        if [ -n "$wheel_file" ] && [ -f "$wheel_file" ]; then
+          name=$(python -c "import pkginfo; w = pkginfo.Wheel('$wheel_file'); print(w.name)" || echo "unknown")
+          version=$(python -c "import pkginfo; w = pkginfo.Wheel('$wheel_file'); print(w.version)" || echo "unknown")
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "::notice::Package: $name v$version"
+        else
+          echo "::warning::No wheel file found"
+          echo "name=unknown" >> "$GITHUB_OUTPUT"
+          echo "version=unknown" >> "$GITHUB_OUTPUT"
+        fi
+        echo "::endgroup::"
+
+    - name: Upload package artifacts
+      uses: actions/upload-artifact@v5
+      with:
+        name: python-packages
+        path: dist/
+        retention-days: 30
+
+    - name: Generate build summary
+      shell: bash
+      run: |
+        set -euo pipefail
+        {
+          echo "## Package Build Information"
+          echo ""
+          echo "### Distribution Files:"
+          echo '```'
+          ls -lh dist/ 2>/dev/null || echo "No distribution files found"
+          echo '```'
+          echo ""
+          echo "### Package Metadata:"
+          echo "- **Name:** ${{ steps.metadata.outputs.name }}"
+          echo "- **Version:** ${{ steps.metadata.outputs.version }}"
+          echo ""
+          if [ -f dist/*.whl ]; then
+            wheel_size=$(du -h dist/*.whl | cut -f1)
+            echo "- **Wheel Size:** $wheel_size"
+          fi
+          if [ -f dist/*.tar.gz ]; then
+            sdist_size=$(du -h dist/*.tar.gz | cut -f1)
+            echo "- **Source Dist Size:** $sdist_size"
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"

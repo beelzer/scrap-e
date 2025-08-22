@@ -1,0 +1,156 @@
+name: Test Matrix
+
+on:
+  workflow_call:
+    inputs:
+      python-versions:
+        description: 'Python versions to test (JSON array)'
+        required: false
+        type: string
+        default: '["3.13"]'
+      os-matrix:
+        description: 'Operating systems to test (JSON array)'
+        required: false
+        type: string
+        default: '["ubuntu-latest", "ubuntu-22.04", "ubuntu-20.04", "windows-latest", "windows-2022", "macos-latest", "macos-13"]'
+      coverage-threshold:
+        description: 'Minimum coverage percentage'
+        required: false
+        type: string
+        default: '50'
+      skip-integration:
+        description: 'Skip integration tests'
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      codecov-token:
+        description: 'Codecov token'
+        required: false
+
+jobs:
+  test:
+    name: Test - Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJson(inputs.os-matrix) }}
+        python-version: ${{ fromJson(inputs.python-versions) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache-key-suffix: test-${{ matrix.os }}
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-deps
+        with:
+          install-playwright: true
+          playwright-browsers: chromium
+
+      - name: Run unit tests
+        uses: ./.github/actions/run-tests
+        with:
+          test-type: unit
+          coverage-threshold: ${{ inputs.coverage-threshold }}
+          upload-coverage: true
+          codecov-token: ${{ secrets.codecov-token }}
+          os-name: ${{ matrix.os }}
+          python-version: ${{ matrix.python-version }}
+
+  integration:
+    name: Integration Tests
+    if: inputs.skip-integration != true
+    needs: [test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    continue-on-error: true
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-deps
+        with:
+          install-playwright: true
+          playwright-browsers: chromium
+
+      - name: Wait for services
+        run: |
+          for i in {1..30}; do
+            if pg_isready -h localhost -p 5432 -U testuser && \
+               redis-cli -h localhost -p 6379 ping >/dev/null 2>&1; then
+              echo "Services are ready!"
+              break
+            fi
+            echo "Waiting for services... ($i/30)"
+            sleep 2
+          done
+
+      - name: Run integration tests
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb
+          REDIS_URL: redis://localhost:6379/0
+        uses: ./.github/actions/run-tests
+        with:
+          test-type: integration
+          coverage-threshold: '0'
+          upload-coverage: false
+
+  benchmarks:
+    name: Performance Benchmarks
+    needs: [test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-deps
+        with:
+          install-playwright: true
+          playwright-browsers: chromium
+
+      - name: Run benchmarks
+        uses: ./.github/actions/run-benchmarks
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}

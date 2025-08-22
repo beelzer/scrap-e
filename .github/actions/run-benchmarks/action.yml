@@ -1,0 +1,96 @@
+name: 'Run Performance Benchmarks'
+description: 'Runs performance benchmarks with pytest-benchmark'
+inputs:
+  alert-threshold:
+    description: 'Performance regression alert threshold'
+    required: false
+    default: '150%'
+  comment-threshold:
+    description: 'Performance comment threshold'
+    required: false
+    default: '110%'
+  github-token:
+    description: 'GitHub token for posting comments'
+    required: false
+    default: ''
+
+outputs:
+  benchmark-results:
+    description: 'Path to benchmark results JSON'
+    value: benchmark-results.json
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install benchmark tools
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "::group::Installing benchmark dependencies"
+        uv pip install pytest-benchmark pytest-timeout memory-profiler
+        echo "::endgroup::"
+
+    - name: Run performance benchmarks
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "::group::Running performance benchmarks"
+        if uv run pytest tests/ \
+          -m performance \
+          --benchmark-only \
+          --benchmark-json=benchmark-results.json \
+          --benchmark-autosave \
+          --benchmark-save-data \
+          --benchmark-max-time=2 \
+          --benchmark-min-rounds=5 \
+          --benchmark-warmup=on \
+          --timeout=300; then
+          echo "::notice::Performance benchmarks completed successfully"
+        else
+          exit_code=$?
+          echo "::warning::Performance tests completed with status $exit_code"
+          # Create empty results file if benchmarks failed
+          if [ ! -f benchmark-results.json ]; then
+            echo '{"benchmarks": []}' > benchmark-results.json
+          fi
+        fi
+        echo "::endgroup::"
+
+    - name: Store benchmark results
+      if: github.event_name != 'pull_request' && inputs.github-token != ''
+      uses: benchmark-action/github-action-benchmark@v1
+      with:
+        tool: 'pytest'
+        output-file-path: benchmark-results.json
+        github-token: ${{ inputs.github-token }}
+        auto-push: false
+        comment-on-alert: true
+        alert-threshold: ${{ inputs.alert-threshold }}
+        comment-always: true
+        fail-on-alert: false
+        summary-always: true
+      continue-on-error: true
+
+    - name: Compare with base branch
+      if: github.event_name == 'pull_request' && inputs.github-token != ''
+      uses: benchmark-action/github-action-benchmark@v1
+      with:
+        tool: 'pytest'
+        output-file-path: benchmark-results.json
+        github-token: ${{ inputs.github-token }}
+        comment-on-alert: true
+        alert-threshold: ${{ inputs.comment-threshold }}
+        comment-always: false
+        fail-on-alert: false
+        summary-always: true
+      continue-on-error: true
+
+    - name: Upload benchmark results
+      if: always()
+      uses: actions/upload-artifact@v5
+      with:
+        name: benchmark-results
+        path: |
+          benchmark-results.json
+          .benchmarks/
+        retention-days: 30

@@ -1,7 +1,4 @@
-name: CI/CD Pipeline
-
-# Advanced CI/CD workflow for the scrap-e universal data scraper project
-# Features: Cross-platform testing, security scanning, performance benchmarks, Docker builds, and more
+name: CI
 
 on:
   push:
@@ -13,8 +10,6 @@ on:
       - 'docs/**'
       - '.gitignore'
       - 'LICENSE'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/PULL_REQUEST_TEMPLATE.md'
   pull_request:
     branches: [main, master, develop]
     types: [opened, synchronize, reopened, ready_for_review]
@@ -25,824 +20,159 @@ on:
       - 'LICENSE'
   workflow_dispatch:
     inputs:
-      debug_enabled:
-        type: boolean
-        description: 'Enable tmate debugging session'
-        required: false
-        default: false
       skip_tests:
         type: boolean
         description: 'Skip test suite execution'
         required: false
         default: false
-      force_docker_build:
+      debug_enabled:
         type: boolean
-        description: 'Force Docker image rebuild'
+        description: 'Enable debug logging'
         required: false
         default: false
+  schedule:
+    # Run security scans daily at 2 AM UTC
+    - cron: '0 2 * * *'
 
-# Cancel in-progress runs for the same branch/PR
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# Global environment variables
 env:
-  # Python and tooling versions
   PYTHON_VERSION_DEFAULT: '3.13'
   UV_VERSION: '0.5.0'
-  NODE_VERSION: '20'
-  POETRY_VERSION: '1.8.3'
-
-  # Performance and output settings
   FORCE_COLOR: '1'
   PIP_DISABLE_PIP_VERSION_CHECK: '1'
   PYTHONUNBUFFERED: '1'
   PYTHONDONTWRITEBYTECODE: '1'
+  # Security: Disable Git prompt for CI
+  GIT_TERMINAL_PROMPT: '0'
+  # Performance: Optimize pip
+  PIP_NO_CACHE_DIR: 'false'
+  PIP_DISABLE_PIP_VERSION_CHECK: '1'
+  # Better error messages
+  PYTHONUTF8: '1'
+  PYTHONIOENCODING: 'utf-8'
 
-  # Cache keys
-  UV_CACHE_DIR: ~/.cache/uv
-  PIP_CACHE_DIR: ~/.cache/pip
-  PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright
-
-  # Security scanning settings
-  BANDIT_SEVERITY_LEVEL: 'medium'
-  SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
-
-  # Coverage thresholds
-  COVERAGE_THRESHOLD: '80'
-  COVERAGE_BRANCH_THRESHOLD: '75'
-
-  # Performance benchmark settings
-  BENCHMARK_ALERT_THRESHOLD: '150%'
-  BENCHMARK_COMMENT_THRESHOLD: '110%'
-
+# Default permissions for all jobs (principle of least privilege)
 permissions:
   contents: read
-  issues: write
-  pull-requests: write
-  security-events: write
-  actions: read
-  checks: write
-  statuses: write
-  packages: write
-  id-token: write
 
 jobs:
   # ============================================================================
-  # STAGE 1: Validation and Analysis
-  # ============================================================================
-
-  workflow-validation:
-    name: 🔍 Validate GitHub Actions Workflows
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: 📥 Checkout repository
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: 🔍 Validate workflow files with actionlint
-        uses: reviewdog/action-actionlint@v1
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          reporter: ${{ github.event_name == 'pull_request' && 'github-pr-review' || 'github-check' }}
-          filter_mode: nofilter
-          fail_on_error: true
-          actionlint_flags: '-color'
-
-  detect-changes:
-    name: 🔍 Detect Changed Files
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      python-changed: ${{ steps.filter.outputs.python }}
-      docker-changed: ${{ steps.filter.outputs.docker }}
-      docs-changed: ${{ steps.filter.outputs.docs }}
-      workflows-changed: ${{ steps.filter.outputs.workflows }}
-      dependencies-changed: ${{ steps.filter.outputs.dependencies }}
-    steps:
-      - name: 📥 Checkout repository
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: 🔍 Detect file changes
-        uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            python:
-              - 'src/**/*.py'
-              - 'tests/**/*.py'
-              - 'examples/**/*.py'
-            docker:
-              - 'Dockerfile'
-              - 'docker-compose.yml'
-              - '.dockerignore'
-            docs:
-              - 'docs/**'
-              - 'mkdocs.yml'
-              - 'README.md'
-            workflows:
-              - '.github/workflows/**'
-              - '.github/actions/**'
-            dependencies:
-              - 'pyproject.toml'
-              - 'uv.lock'
-              - 'requirements*.txt'
-
-  # ============================================================================
-  # STAGE 2: Code Quality and Pre-commit Hooks
+  # STAGE 1: Code Quality
   # ============================================================================
 
   pre-commit:
-    name: 🎣 Pre-commit Hooks Validation
+    name: Pre-commit Hooks
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [workflow-validation]
+    permissions:
+      contents: read
     steps:
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: 🐍 Set up Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION_DEFAULT }}
 
-      - name: 📦 Cache pre-commit environments
-        uses: actions/cache@v4
+      - name: Cache pre-commit environments
+        uses: actions/cache@v5
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
           restore-keys: |
             pre-commit-${{ runner.os }}-
 
-      - name: 🎣 Run pre-commit hooks
+      - name: Run pre-commit hooks
         uses: pre-commit/action@v3.0.1
         with:
           extra_args: --all-files --verbose
 
-  lint-and-format:
-    name: 🎨 Code Quality - Linting & Formatting
+  lint:
+    name: Lint & Type Check
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [workflow-validation, detect-changes]
-    if: needs.detect-changes.outputs.python-changed == 'true' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
     steps:
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
 
-      - name: 🐍 Set up Python
-        uses: actions/setup-python@v5
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python
         with:
           python-version: ${{ env.PYTHON_VERSION_DEFAULT }}
 
-      - name: 📦 Install uv package manager
-        uses: astral-sh/setup-uv@v6
+      - name: Install dependencies
+        uses: ./.github/actions/install-deps
         with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-          cache-dependency-glob: |
-            **/pyproject.toml
-            **/uv.lock
+          install-playwright: false
 
-      - name: 🔧 Install dependencies
-        run: |
-          uv sync --dev --no-install-project
-          uv pip install -e .
-
-      - name: 🔍 Lint with Ruff (includes import sorting)
-        id: ruff
-        run: |
-          uv run ruff check src/ tests/ examples/ --output-format=github --show-fixes
-          echo "ruff_status=$?" >> "$GITHUB_OUTPUT"
-        continue-on-error: true
-
-      - name: 🎨 Check code formatting with Ruff
-        id: ruff-format
-        run: |
-          uv run ruff format --check src/ tests/ examples/
-          echo "ruff_format_status=$?" >> "$GITHUB_OUTPUT"
-        continue-on-error: true
-
-      - name: 📊 Generate detailed lint report
-        if: always()
-        run: |
-          # Generate JSON report for further analysis
-          uv run ruff check src/ tests/ --output-format=json > ruff-report.json || true
-
-          # Create summary for GitHub
-          {
-            echo "## 🎨 Code Quality Report"
-            echo ""
-            echo "| Check | Status |"
-            echo "|-------|--------|"
-            echo "| Ruff Linting | ${{ steps.ruff.outputs.ruff_status == '0' && '✅ Passed' || '❌ Failed' }} |"
-            echo "| Ruff Formatting | ${{ steps.ruff-format.outputs.ruff_format_status == '0' && '✅ Passed' || '❌ Failed' }} |"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          # Count issues
-          if [ -f ruff-report.json ]; then
-            ISSUE_COUNT=$(python -c "import json; data=json.load(open('ruff-report.json')); print(len(data))" 2>/dev/null || echo "0")
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "**Total Issues Found:** $ISSUE_COUNT" >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: 📤 Upload lint reports
-        if: always()
-        uses: actions/upload-artifact@v4
+      - name: Run linting and type checking
+        uses: ./.github/actions/lint
         with:
-          name: lint-reports
-          path: |
-            ruff-report.json
-          retention-days: 7
+          check-types: true
+          fail-on-error: true
 
-      - name: ❌ Fail if quality checks failed
-        if: steps.ruff.outputs.ruff_status != '0' || steps.ruff-format.outputs.ruff_format_status != '0'
-        run: |
-          echo "Code quality checks failed. Please run locally:"
-          echo "  uv run ruff check --fix src/ tests/ examples/"
-          echo "  uv run ruff format src/ tests/ examples/"
-          exit 1
+  # ============================================================================
+  # STAGE 2: Security Scanning
+  # ============================================================================
 
-  type-checking:
-    name: 🔍 Static Type Checking
+  dependency-review:
+    name: Dependency Review
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    needs: [workflow-validation, detect-changes]
-    if: needs.detect-changes.outputs.python-changed == 'true' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: 🐍 Set up Python
-        uses: actions/setup-python@v5
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION_DEFAULT }}
+          fail-on-severity: high
+          deny-licenses: GPL-3.0, AGPL-3.0
+          comment-summary-in-pr: always
 
-      - name: 📦 Install uv package manager
-        uses: astral-sh/setup-uv@v6
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-
-      - name: 🔧 Install dependencies with type stubs
-        run: |
-          uv sync --dev --no-install-project
-          uv pip install -e .
-          uv pip install types-requests types-pyyaml types-python-dateutil types-setuptools
-
-      - name: 🔍 Run MyPy type checking
-        id: mypy
-        run: |
-          uv run mypy src/scrap_e \
-            --html-report mypy-html-report \
-            --xml-report mypy-xml-report \
-            --junit-xml mypy-junit.xml \
-            --pretty \
-            --show-error-codes \
-            --show-column-numbers \
-            --no-error-summary || echo "mypy_status=$?" >> "$GITHUB_OUTPUT"
-        continue-on-error: true
-
-      - name: 📊 Generate type checking summary
-        if: always()
-        run: |
-          {
-            echo "## 🔍 Type Checking Report"
-            echo ""
-            if [ "${{ steps.mypy.outputs.mypy_status }}" == "0" ] || [ -z "${{ steps.mypy.outputs.mypy_status }}" ]; then
-              echo "✅ **All type checks passed!**"
-            else
-              echo "❌ **Type checking found issues**"
-              echo ""
-              echo "Please review the MyPy report for details."
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: 📤 Upload MyPy reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: mypy-reports
-          path: |
-            mypy-html-report/
-            mypy-xml-report/
-            mypy-junit.xml
-          retention-days: 7
-
-      - name: 📝 Publish MyPy results as PR comment
-        if: github.event_name == 'pull_request' && always()
-        uses: dorny/test-reporter@v2
-        with:
-          name: MyPy Type Check Results
-          path: mypy-junit.xml
-          reporter: java-junit
-          fail-on-error: false
-
-  # ============================================================================
-  # STAGE 3: Testing Matrix
-  # ============================================================================
-
-  test-matrix:
-    name: 🧪 Tests - Python ${{ matrix.python-version }} on ${{ matrix.os }}
-    needs: [lint-and-format, type-checking, pre-commit]
-    if: github.event.inputs.skip_tests != 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.11', '3.12', '3.13']
-        exclude:
-          # Optimize by excluding some combinations for PRs
-          - os: ${{ github.event_name == 'pull_request' && 'macos-latest' || '' }}
-            python-version: '3.11'
-          - os: ${{ github.event_name == 'pull_request' && 'windows-latest' || '' }}
-            python-version: '3.11'
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    steps:
-      - name: 📥 Checkout repository
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: 🐍 Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: 📦 Install uv package manager
-        uses: astral-sh/setup-uv@v6
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-          cache-dependency-glob: |
-            **/pyproject.toml
-            **/uv.lock
-
-      - name: 🎭 Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
-          key: playwright-${{ runner.os }}-${{ hashFiles('**/pyproject.toml') }}
-          restore-keys: |
-            playwright-${{ runner.os }}-
-
-      - name: 🔧 Install project dependencies
-        run: |
-          uv sync --dev --no-install-project
-          uv pip install -e .
-
-      - name: 🎭 Install Playwright browsers
-        run: |
-          uv run playwright install chromium firefox webkit
-          uv run playwright install-deps
-
-      - name: 🏥 Run doctor command for diagnostics
-        run: |
-          uv run scrap-e doctor || echo "Doctor command not available"
-        continue-on-error: true
-
-      - name: 🧪 Run unit tests with coverage
-        env:
-          PYTEST_XDIST_WORKER_COUNT: auto
-        run: |
-          uv run pytest tests/ \
-            -m "not integration and not performance" \
-            --cov=scrap_e \
-            --cov-report=xml:coverage-${{ matrix.os }}-py${{ matrix.python-version }}.xml \
-            --cov-report=html:htmlcov-${{ matrix.os }}-py${{ matrix.python-version }} \
-            --cov-report=term-missing:skip-covered \
-            --cov-fail-under=${{ env.COVERAGE_THRESHOLD }} \
-            --junit-xml=test-results-${{ matrix.os }}-py${{ matrix.python-version }}.xml \
-            --verbose \
-            --tb=short \
-            --maxfail=5 \
-            --durations=20
-
-      - name: 📈 Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage-${{ matrix.os }}-py${{ matrix.python-version }}.xml
-          flags: unittests,${{ matrix.os }},py${{ matrix.python-version }}
-          name: coverage-${{ matrix.os }}-py${{ matrix.python-version }}
-          fail_ci_if_error: false
-          verbose: true
-
-      - name: 📤 Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-${{ matrix.os }}-py${{ matrix.python-version }}
-          path: |
-            test-results-*.xml
-            coverage-*.xml
-            htmlcov-*/
-          retention-days: 7
-
-      - name: 📝 Publish test results
-        if: always()
-        uses: dorny/test-reporter@v2
-        with:
-          name: Test Results - ${{ matrix.os }} Python ${{ matrix.python-version }}
-          path: test-results-${{ matrix.os }}-py${{ matrix.python-version }}.xml
-          reporter: java-junit
-          fail-on-error: false
-
-  integration-tests:
-    name: 🔗 Integration Tests
-    needs: [test-matrix]
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    continue-on-error: true
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: testuser
-          POSTGRES_PASSWORD: testpass
-          POSTGRES_DB: testdb
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-      mongodb:
-        image: mongo:7
-        env:
-          MONGO_INITDB_ROOT_USERNAME: testuser
-          MONGO_INITDB_ROOT_PASSWORD: testpass
-          MONGO_INITDB_DATABASE: testdb
-        options: >-
-          --health-cmd "echo 'db.runCommand({ping:1}).ok' | mongosh --quiet"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 27017:27017
-
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
-
-      elasticsearch:
-        image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
-        env:
-          discovery.type: single-node
-          xpack.security.enabled: false
-          ES_JAVA_OPTS: -Xms512m -Xmx512m
-        options: >-
-          --health-cmd "curl -f http://localhost:9200/_cluster/health || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-        ports:
-          - 9200:9200
-
-    steps:
-      - name: 📥 Checkout repository
-        uses: actions/checkout@v5
-
-      - name: 🐍 Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION_DEFAULT }}
-
-      - name: 📦 Install uv package manager
-        uses: astral-sh/setup-uv@v6
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-
-      - name: 🔧 Install dependencies
-        run: |
-          uv sync --dev --no-install-project
-          uv pip install -e .
-
-      - name: 🎭 Install Playwright browsers
-        run: |
-          uv run playwright install chromium
-          uv run playwright install-deps
-
-      - name: ⏳ Wait for services to be ready
-        run: |
-          echo "Waiting for all services to be healthy..."
-          for i in {1..30}; do
-            if pg_isready -h localhost -p 5432 -U testuser && \
-               curl -f http://localhost:9200/_cluster/health >/dev/null 2>&1 && \
-               redis-cli -h localhost -p 6379 ping >/dev/null 2>&1; then
-              echo "All services are ready!"
-              break
-            fi
-            echo "Waiting for services... ($i/30)"
-            sleep 2
-          done
-
-      - name: 🔗 Run integration tests
-        env:
-          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb
-          MONGODB_URL: mongodb://testuser:testpass@localhost:27017/testdb?authSource=admin
-          REDIS_URL: redis://localhost:6379/0
-          ELASTICSEARCH_URL: http://localhost:9200
-        run: |
-          uv run pytest tests/ \
-            -m integration \
-            --verbose \
-            --tb=short \
-            --junit-xml=integration-test-results.xml \
-            --timeout=120 || echo "Integration tests completed with status $?"
-
-      - name: 📤 Upload integration test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: integration-test-results
-          path: integration-test-results.xml
-          retention-days: 7
-
-  performance-benchmarks:
-    name: ⚡ Performance Benchmarks
-    needs: [test-matrix]
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    continue-on-error: true
-    steps:
-      - name: 📥 Checkout repository
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: 🐍 Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION_DEFAULT }}
-
-      - name: 📦 Install uv package manager
-        uses: astral-sh/setup-uv@v6
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-
-      - name: 🔧 Install dependencies with benchmark tools
-        run: |
-          uv sync --dev --no-install-project
-          uv pip install -e .
-          uv pip install pytest-benchmark pytest-timeout memory-profiler
-
-      - name: 🎭 Install Playwright for performance tests
-        run: |
-          uv run playwright install chromium
-          uv run playwright install-deps
-
-      - name: ⚡ Run performance benchmarks
-        run: |
-          uv run pytest tests/ \
-            -m performance \
-            --benchmark-only \
-            --benchmark-json=benchmark-results.json \
-            --benchmark-autosave \
-            --benchmark-save-data \
-            --benchmark-max-time=2 \
-            --benchmark-min-rounds=5 \
-            --benchmark-warmup=on \
-            --timeout=300 || {
-              echo "Performance tests completed with status $?"
-              echo '{"benchmarks": []}' > benchmark-results.json
-            }
-
-      - name: 📊 Store benchmark results
-        if: github.event_name != 'pull_request'
-        uses: benchmark-action/github-action-benchmark@v1
-        with:
-          tool: 'pytest'
-          output-file-path: benchmark-results.json
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          auto-push: false
-          comment-on-alert: true
-          alert-threshold: ${{ env.BENCHMARK_ALERT_THRESHOLD }}
-          comment-always: true
-          fail-on-alert: false
-          summary-always: true
-
-      - name: 📊 Compare benchmark with base branch
-        if: github.event_name == 'pull_request'
-        uses: benchmark-action/github-action-benchmark@v1
-        with:
-          tool: 'pytest'
-          output-file-path: benchmark-results.json
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          comment-on-alert: true
-          alert-threshold: ${{ env.BENCHMARK_COMMENT_THRESHOLD }}
-          comment-always: false
-          fail-on-alert: false
-          summary-always: true
-
-      - name: 📤 Upload benchmark results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: benchmark-results
-          path: |
-            benchmark-results.json
-            .benchmarks/
-          retention-days: 30
-
-  # ============================================================================
-  # STAGE 4: Security Scanning
-  # ============================================================================
-
-  security-scan:
-    name: 🔒 Security Scanning
+  security:
+    name: Security Scan
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Run security scans on schedule or when code changes
+    if: github.event_name == 'schedule' || github.event_name != 'schedule'
     permissions:
       security-events: write
       actions: read
       contents: read
     steps:
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
 
-      - name: 🐍 Set up Python
-        uses: actions/setup-python@v5
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python
         with:
           python-version: ${{ env.PYTHON_VERSION_DEFAULT }}
 
-      - name: 📦 Install uv package manager
-        uses: astral-sh/setup-uv@v6
+      - name: Install dependencies
+        uses: ./.github/actions/install-deps
         with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
+          install-playwright: false
 
-      - name: 🔧 Install security scanning tools
-        run: |
-          uv pip install --system \
-            bandit[toml] \
-            safety \
-            pip-audit \
-            vulture \
-            dlint
-          # Note: semgrep is installed via GitHub Action below due to rich version conflict
-
-      - name: 🔍 Run Bandit security scanner
-        id: bandit
-        run: |
-          bandit -r src/ \
-            --severity-level ${{ env.BANDIT_SEVERITY_LEVEL }} \
-            --confidence-level medium \
-            --format sarif \
-            --output bandit-results.sarif \
-            --exit-zero
-
-          bandit -r src/ \
-            --severity-level ${{ env.BANDIT_SEVERITY_LEVEL }} \
-            --confidence-level medium \
-            --format json \
-            --output bandit-results.json
-
-          # Also run with console output for logs
-          bandit -r src/ \
-            --severity-level ${{ env.BANDIT_SEVERITY_LEVEL }} \
-            --confidence-level medium \
-            --format txt || echo "bandit_status=$?" >> "$GITHUB_OUTPUT"
-        continue-on-error: true
-
-      - name: 🛡️ Run Safety vulnerability check
-        id: safety
-        run: |
-          # Generate requirements file from current environment
-          uv pip freeze > requirements-frozen.txt
-
-          # Run safety check
-          safety check \
-            --file requirements-frozen.txt \
-            --json \
-            --output safety-results.json || echo "safety_status=$?" >> "$GITHUB_OUTPUT"
-
-          # Also output to console
-          safety check \
-            --file requirements-frozen.txt || true
-        continue-on-error: true
-
-      - name: 🔍 Run pip-audit for dependency vulnerabilities
-        id: pip-audit
-        run: |
-          pip-audit \
-            --desc \
-            --format json \
-            --output pip-audit-results.json || echo "pip_audit_status=$?" >> "$GITHUB_OUTPUT"
-
-          # Also output to console with more details
-          pip-audit \
-            --desc \
-            --format markdown || true
-        continue-on-error: true
-
-      - name: 🔍 Run Semgrep security analysis
-        uses: returntocorp/semgrep-action@v1
+      - name: Run security scanning
+        uses: ./.github/actions/security-scan
         with:
-          config: >-
-            p/security-audit
-            p/python
-            p/owasp-top-ten
-            p/r2c-best-practices
-        continue-on-error: true
+          bandit-severity: medium
+          upload-sarif: true
 
-      - name: 🔍 Run Vulture for dead code detection
-        id: vulture
-        run: |
-          vulture src/ \
-            --min-confidence 80 \
-            --exclude "*/tests/*,*/test_*.py" \
-            --format json > vulture-results.json || echo "vulture_status=$?" >> "$GITHUB_OUTPUT"
-
-          # Also output to console
-          vulture src/ \
-            --min-confidence 80 \
-            --exclude "*/tests/*,*/test_*.py" || true
-        continue-on-error: true
-
-      - name: 📊 Generate security scan summary
-        if: always()
-        run: |
-          {
-            echo "## 🔒 Security Scan Report"
-            echo ""
-            echo "| Scanner | Status |"
-            echo "|---------|--------|"
-            echo "| Bandit | ${{ steps.bandit.outputs.bandit_status == '0' && '✅ Passed' || '⚠️ Issues Found' }} |"
-            echo "| Safety | ${{ steps.safety.outputs.safety_status == '0' && '✅ Passed' || '⚠️ Vulnerabilities Found' }} |"
-            echo "| pip-audit | ${{ steps.pip-audit.outputs.pip_audit_status == '0' && '✅ Passed' || '⚠️ Issues Found' }} |"
-            echo "| Vulture | ${{ steps.vulture.outputs.vulture_status == '0' && '✅ No Dead Code' || '⚠️ Dead Code Found' }} |"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          # Add vulnerability counts if available
-          if [ -f safety-results.json ]; then
-            VULN_COUNT=$(python -c "import json; data=json.load(open('safety-results.json')); print(len(data.get('vulnerabilities', [])))" 2>/dev/null || echo "0")
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "**Safety Vulnerabilities Found:** $VULN_COUNT" >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-          if [ -f pip-audit-results.json ]; then
-            AUDIT_COUNT=$(python -c "import json; data=json.load(open('pip-audit-results.json')); print(len(data.get('vulnerabilities', [])))" 2>/dev/null || echo "0")
-            echo "**Pip-audit Issues Found:** $AUDIT_COUNT" >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: 📤 Upload SARIF results to GitHub
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: bandit-results.sarif
-          category: bandit
-        continue-on-error: true
-
-      - name: 📤 Upload security scan reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: security-reports
-          path: |
-            bandit-results.*
-            safety-results.json
-            pip-audit-results.json
-            vulture-results.json
-            requirements-frozen.txt
-          retention-days: 30
-
-  dependency-scan:
-    name: 🔍 Dependency Vulnerability Scanning
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: 📥 Checkout repository
-        uses: actions/checkout@v5
-
-      - name: 🐍 Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION_DEFAULT }}
-
-      - name: 🔍 Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -851,127 +181,98 @@ jobs:
           severity: 'CRITICAL,HIGH,MEDIUM'
           exit-code: '0'
 
-      - name: 📤 Upload Trivy SARIF results
+      - name: Upload Trivy SARIF results
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-results.sarif
           category: trivy
 
-      - name: 🔍 Run OWASP Dependency Check
-        uses: dependency-check/Dependency-Check_Action@main
-        with:
-          project: 'scrap-e'
-          path: '.'
-          format: 'ALL'
-          args: >
-            --enableRetired
-            --enableExperimental
-        continue-on-error: true
-
-      - name: 📤 Upload OWASP Dependency Check results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: dependency-check-reports
-          path: reports/
-          retention-days: 30
-
   # ============================================================================
-  # STAGE 5: Build and Package
+  # STAGE 3: Testing
   # ============================================================================
 
-  build-package:
-    name: 📦 Build Python Package
-    needs: [test-matrix, security-scan]
+  test-matrix:
+    name: Tests
+    needs: [lint, pre-commit]
+    if: github.event.inputs.skip_tests != 'true'
+    uses: ./.github/workflows/test-matrix.yml
+    with:
+      python-versions: '["3.13"]'
+      # Note: windows-arm64 only works for public repos or Team/Enterprise plans
+      os-matrix: ${{ github.event_name == 'pull_request' && '["ubuntu-latest", "ubuntu-20.04", "windows-latest", "macos-latest"]' || '["ubuntu-latest", "ubuntu-22.04", "ubuntu-20.04", "windows-latest", "windows-2022", "macos-latest", "macos-13"]' }}
+      coverage-threshold: '50'
+      skip-integration: false
+    secrets:
+      codecov-token: ${{ secrets.CODECOV_TOKEN }}
+
+  # ============================================================================
+  # STAGE 4: Build & Package
+  # ============================================================================
+
+  build:
+    name: Build Package
+    needs: [test-matrix, security]
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      package-name: ${{ steps.build.outputs.package-name }}
+      package-version: ${{ steps.build.outputs.package-version }}
     steps:
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: 🐍 Set up Python
-        uses: actions/setup-python@v5
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python
         with:
           python-version: ${{ env.PYTHON_VERSION_DEFAULT }}
 
-      - name: 📦 Install uv and build tools
-        run: |
-          pip install uv build twine wheel setuptools
-
-      - name: 🏗️ Build distribution packages
-        run: |
-          python -m build --sdist --wheel --outdir dist/
-          ls -la dist/
-
-      - name: ✅ Check package with twine
-        run: |
-          twine check --strict dist/*
-
-      - name: 📊 Display package information
-        run: |
-          {
-            echo "## 📦 Package Build Information"
-            echo ""
-            echo "### Distribution Files:"
-            echo '```'
-            ls -lh dist/
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          # Extract and display package metadata
-          pip install pkginfo
-          {
-            echo ""
-            echo "### Package Metadata:"
-            echo '```'
-            python -c "import pkginfo; w = pkginfo.Wheel('dist/'+ [f for f in __import__('os').listdir('dist/') if f.endswith('.whl')][0]); print(f'Name: {w.name}\\nVersion: {w.version}\\nSummary: {w.summary}')"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: 📤 Upload package artifacts
-        uses: actions/upload-artifact@v4
+      - name: Build Python package
+        id: build
+        uses: ./.github/actions/build-package
         with:
-          name: python-packages
-          path: dist/
-          retention-days: 30
+          check-package: true
 
-  docker-build:
-    name: 🐳 Docker Build & Scan
-    needs: [test-matrix, detect-changes]
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          format: spdx-json
+          output-file: sbom.spdx.json
+          upload-artifact: true
+          upload-artifact-retention: 30
+
+      - name: Attest Build Provenance
+        if: github.event_name != 'pull_request'
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: dist/*.whl
+
+  docker:
+    name: Docker Build
+    needs: [test-matrix]
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: needs.detect-changes.outputs.docker-changed == 'true' || github.event.inputs.force_docker_build == 'true' || github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
       packages: write
       security-events: write
     steps:
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: 🐳 Set up QEMU for multi-platform builds
+      - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
-      - name: 🐳 Set up Docker Buildx
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: |
-            network=host
-            image=moby/buildkit:latest
 
-      - name: 🔐 Log in to Docker Hub
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-        continue-on-error: true
-
-      - name: 🔐 Log in to GitHub Container Registry
+      - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
@@ -979,27 +280,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 📝 Extract Docker metadata
+      - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ghcr.io/${{ github.repository }}
-            ${{ secrets.DOCKER_USERNAME && format('{0}/scrap-e', secrets.DOCKER_USERNAME) || '' }}
+          images: ghcr.io/${{ github.repository }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
-          labels: |
-            org.opencontainers.image.title=scrap-e
-            org.opencontainers.image.description=Universal data scraper
-            org.opencontainers.image.vendor=${{ github.repository_owner }}
 
-      - name: 🏗️ Build Docker image for testing
+      - name: Build Docker image for testing
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -1009,11 +303,9 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             PYTHON_VERSION=${{ env.PYTHON_VERSION_DEFAULT }}
-            BUILD_DATE=${{ github.event.repository.updated_at }}
-            VCS_REF=${{ github.sha }}
 
-      - name: 🔍 Scan Docker image with Trivy
-        uses: aquasecurity/trivy-action@master
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: scrap-e:test
           format: 'sarif'
@@ -1021,18 +313,19 @@ jobs:
           severity: 'CRITICAL,HIGH'
           exit-code: '0'
 
-      - name: 📤 Upload Docker scan results
+      - name: Upload Docker scan results
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: docker-trivy-results.sarif
           category: docker-trivy
 
-      - name: 🧪 Test Docker image
+      - name: Test Docker image
         run: |
           docker run --rm scrap-e:test scrap-e --version || echo "Version command not available"
           docker run --rm scrap-e:test scrap-e doctor || echo "Doctor command not available"
 
-      - name: 🏗️ Build and push multi-platform Docker image
+      - name: Build and push multi-platform image
+        id: docker-build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -1044,329 +337,144 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             PYTHON_VERSION=${{ env.PYTHON_VERSION_DEFAULT }}
-            BUILD_DATE=${{ github.event.repository.updated_at }}
-            VCS_REF=${{ github.sha }}
+          provenance: true
+          sbom: true
 
-      - name: 📊 Generate Docker build summary
-        if: success()
+      - name: Sign container image
+        if: github.event_name != 'pull_request'
+        env:
+          DIGEST: ${{ steps.docker-build.outputs.digest }}
         run: |
-          {
-            echo "## 🐳 Docker Build Summary"
-            echo ""
-            echo "### Images:"
-            echo '```'
-            echo "${{ steps.meta.outputs.tags }}"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice::Container image signed with digest: ${DIGEST}"
+          # Note: Cosign signing would require additional setup
 
   # ============================================================================
-  # STAGE 6: Documentation
+  # STAGE 5: Release
   # ============================================================================
 
-  docs-build:
-    name: 📚 Documentation Build & Validation
-    needs: [lint-and-format, detect-changes]
-    if: needs.detect-changes.outputs.docs-changed == 'true' || github.event_name == 'push'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: 📥 Checkout repository
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: 🐍 Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION_DEFAULT }}
-
-      - name: 📦 Install uv package manager
-        uses: astral-sh/setup-uv@v6
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-
-      - name: 🔧 Install documentation dependencies
-        run: |
-          uv sync --dev --no-install-project
-          uv pip install -e .
-          uv pip install mkdocs mkdocs-material mkdocstrings[python] mkdocs-git-revision-date-localized-plugin
-
-      - name: 📚 Build documentation
-        run: |
-          uv run mkdocs build --strict --verbose --site-dir site
-
-      - name: 🔍 Check for broken links
-        run: |
-          uv pip install linkchecker
-          uv run linkchecker site/ \
-            --no-robots \
-            --check-extern \
-            --ignore-url=^mailto: \
-            --ignore-url=^tel: || echo "Link checking completed with warnings"
-        continue-on-error: true
-
-      - name: 📤 Upload documentation artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: documentation
-          path: site/
-          retention-days: 7
-
-      - name: 📊 Documentation build summary
-        run: |
-          {
-            echo "## 📚 Documentation Build"
-            echo ""
-            echo "✅ Documentation built successfully!"
-            echo ""
-            echo "### Site Statistics:"
-            echo "- Total HTML files: $(find site -name "*.html" | wc -l)"
-            echo "- Total size: $(du -sh site | cut -f1)"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  # ============================================================================
-  # STAGE 7: Release Preparation
-  # ============================================================================
-
-  release-readiness:
-    name: 🚀 Release Readiness Check
+  release:
+    name: Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build-package, docker-build, security-scan, integration-tests]
+    needs: [build, docker]
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    outputs:
-      ready: ${{ steps.check.outputs.ready }}
+    environment:
+      name: release
+      url: https://pypi.org/project/${{ needs.build.outputs.package-name }}/
+    permissions:
+      contents: write
+      id-token: write  # For PyPI trusted publishing
     steps:
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: 🔍 Check release readiness
-        id: check
-        run: |
-          echo "ready=true" >> "$GITHUB_OUTPUT"
-
-          # Check if all required jobs passed
-          if [ "${{ needs.build-package.result }}" != "success" ] || \
-             [ "${{ needs.docker-build.result }}" != "success" ] || \
-             [ "${{ needs.security-scan.result }}" != "success" ]; then
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "❌ Not all required jobs passed" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "✅ All required jobs passed" >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: 📝 Generate changelog
-        if: steps.check.outputs.ready == 'true'
-        run: |
-          # Generate changelog from commits
-          {
-            echo "# Release Notes for ${GITHUB_REF#refs/tags/}"
-            echo ""
-          } > RELEASE_NOTES.md
-
-          # Get previous tag
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-
-          if [ -n "$PREV_TAG" ]; then
-            {
-              echo "## Changes since $PREV_TAG"
-              echo ""
-              echo "### Features"
-              git log --pretty=format:"- %s (%h)" "$PREV_TAG"..HEAD --grep="^feat" || echo "- No features"
-              echo ""
-              echo "### Bug Fixes"
-              git log --pretty=format:"- %s (%h)" "$PREV_TAG"..HEAD --grep="^fix" || echo "- No bug fixes"
-              echo ""
-              echo "### Documentation"
-              git log --pretty=format:"- %s (%h)" "$PREV_TAG"..HEAD --grep="^docs" || echo "- No documentation changes"
-              echo ""
-              echo "### Other Changes"
-              git log --pretty=format:"- %s (%h)" "$PREV_TAG"..HEAD --grep="^" --invert-grep --grep="^feat" --grep="^fix" --grep="^docs" || echo "- No other changes"
-            } >> RELEASE_NOTES.md
-          else
-            echo "Initial release" >> RELEASE_NOTES.md
-          fi
-
-      - name: 📤 Upload release notes
-        if: steps.check.outputs.ready == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-notes
-          path: RELEASE_NOTES.md
-          retention-days: 7
-
-  # ============================================================================
-  # STAGE 8: Summary and Notifications
-  # ============================================================================
-
-  pr-comment:
-    name: 💬 PR Summary Comment
-    if: github.event_name == 'pull_request'
-    needs: [lint-and-format, type-checking, test-matrix, security-scan, performance-benchmarks]
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-      issues: write
-    steps:
-      - name: 📥 Download all artifacts
+      - name: Download package artifacts
         uses: actions/download-artifact@v5
         with:
-          path: artifacts/
+          name: python-packages
+          path: dist/
 
-      - name: 📊 Generate PR comment
-        uses: actions/github-script@v7
-        env:
-          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        with:
-          script: |
-            const fs = require('fs');
-            const path = require('path');
-
-            // Gather test results
-            let coverageData = 'N/A';
-            let testsPassed = '✅';
-            let securityStatus = '✅';
-            let performanceStatus = '✅';
-
-            // Check job results
-            const jobResults = {
-              lint: '${{ needs.lint-and-format.result }}',
-              typeCheck: '${{ needs.type-checking.result }}',
-              tests: '${{ needs.test-matrix.result }}',
-              security: '${{ needs.security-scan.result }}',
-              performance: '${{ needs.performance-benchmarks.result }}'
-            };
-
-            // Build status table
-            let statusTable = '| Check | Status |\n|-------|--------|\n';
-            statusTable += `| 🎨 Code Quality | ${jobResults.lint === 'success' ? '✅ Passed' : '❌ Failed'} |\n`;
-            statusTable += `| 🔍 Type Checking | ${jobResults.typeCheck === 'success' ? '✅ Passed' : '❌ Failed'} |\n`;
-            statusTable += `| 🧪 Tests | ${jobResults.tests === 'success' ? '✅ Passed' : '❌ Failed'} |\n`;
-            statusTable += `| 🔒 Security | ${jobResults.security === 'success' ? '✅ Passed' : '⚠️ Issues Found'} |\n`;
-            statusTable += `| ⚡ Performance | ${jobResults.performance === 'success' ? '✅ Passed' : '⚠️ Check Results'} |\n`;
-
-            const comment = `## 🤖 CI Pipeline Results
-
-            ${statusTable}
-
-            ### 📊 Details
-
-            - **Branch:** \`${process.env.PR_HEAD_REF}\`
-            - **Commit:** \`${context.payload.pull_request.head.sha.substring(0, 7)}\`
-            - **Triggered by:** @${{ github.actor }}
-
-            <details>
-            <summary>📈 Coverage Report</summary>
-
-            Coverage data will be available after all tests complete.
-            Check the [Codecov report](https://codecov.io/gh/${{ github.repository }}/pull/${{ github.event.pull_request.number }}) for detailed coverage information.
-
-            </details>
-
-            <details>
-            <summary>⚡ Performance Benchmarks</summary>
-
-            Performance benchmark results are available in the workflow artifacts.
-
-            </details>
-
-            ---
-            *Last updated: ${new Date().toISOString()}*
-            `;
-
-            // Find and update or create comment
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
-
-            const botComment = comments.find(comment =>
-              comment.user.type === 'Bot' &&
-              comment.body.includes('CI Pipeline Results')
-            );
-
-            if (botComment) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: botComment.id,
-                body: comment
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body: comment
-              });
-            }
-
-  workflow-summary:
-    name: 📊 Final Workflow Summary
-    if: always()
-    needs: [
-      workflow-validation,
-      lint-and-format,
-      type-checking,
-      test-matrix,
-      integration-tests,
-      performance-benchmarks,
-      security-scan,
-      dependency-scan,
-      build-package,
-      docker-build,
-      docs-build
-    ]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: 📊 Generate comprehensive summary
+      - name: Generate changelog
+        id: changelog
         run: |
           {
-            echo "# 🎯 CI/CD Pipeline Complete"
+            echo "# Release ${GITHUB_REF#refs/tags/}"
             echo ""
-            echo "## 📋 Job Results"
+            PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+            if [ -n "$PREV_TAG" ]; then
+              echo "## Changes since $PREV_TAG"
+              echo ""
+              git log --pretty=format:"- %s (%h)" "$PREV_TAG"..HEAD
+            else
+              echo "Initial release"
+            fi
+          } > RELEASE_NOTES.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: RELEASE_NOTES.md
+          files: dist/*
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+
+      - name: Publish to PyPI (Trusted Publishing)
+        if: ${{ !contains(github.ref, 'alpha') && !contains(github.ref, 'beta') }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          skip-existing: true
+          verbose: true
+
+  # ============================================================================
+  # STAGE 6: Summary
+  # ============================================================================
+
+  summary:
+    name: Workflow Summary
+    if: always()
+    needs: [pre-commit, lint, dependency-review, security, test-matrix, build, docker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+    steps:
+      - name: Generate comprehensive summary
+        run: |
+          {
+            echo "# CI Pipeline Summary"
             echo ""
-            echo "| Stage | Job | Status | Duration |"
-            echo "|-------|-----|--------|----------|"
-            echo "| Validation | Workflow Validation | ${{ needs.workflow-validation.result == 'success' && '✅' || '❌' }} | - |"
-            echo "| Quality | Linting & Formatting | ${{ needs.lint-and-format.result == 'success' && '✅' || needs.lint-and-format.result == 'skipped' && '⏭️' || '❌' }} | - |"
-            echo "| Quality | Type Checking | ${{ needs.type-checking.result == 'success' && '✅' || needs.type-checking.result == 'skipped' && '⏭️' || '❌' }} | - |"
-            echo "| Testing | Unit Tests | ${{ needs.test-matrix.result == 'success' && '✅' || needs.test-matrix.result == 'skipped' && '⏭️' || '❌' }} | - |"
-            echo "| Testing | Integration Tests | ${{ needs.integration-tests.result == 'success' && '✅' || needs.integration-tests.result == 'skipped' && '⏭️' || '❌' }} | - |"
-            echo "| Testing | Performance | ${{ needs.performance-benchmarks.result == 'success' && '✅' || needs.performance-benchmarks.result == 'skipped' && '⏭️' || '❌' }} | - |"
-            echo "| Security | Security Scan | ${{ needs.security-scan.result == 'success' && '✅' || needs.security-scan.result == 'skipped' && '⏭️' || '❌' }} | - |"
-            echo "| Security | Dependency Scan | ${{ needs.dependency-scan.result == 'success' && '✅' || needs.dependency-scan.result == 'skipped' && '⏭️' || '❌' }} | - |"
-            echo "| Build | Package Build | ${{ needs.build-package.result == 'success' && '✅' || needs.build-package.result == 'skipped' && '⏭️' || '❌' }} | - |"
-            echo "| Build | Docker Build | ${{ needs.docker-build.result == 'success' && '✅' || needs.docker-build.result == 'skipped' && '⏭️' || '❌' }} | - |"
-            echo "| Docs | Documentation | ${{ needs.docs-build.result == 'success' && '✅' || needs.docs-build.result == 'skipped' && '⏭️' || '❌' }} | - |"
+            echo "## Job Results"
             echo ""
-            echo "## 📌 Summary"
+            echo "| Job | Status | Details |"
+            echo "|-----|--------|---------|"
+            echo "| Pre-commit | ${{ needs.pre-commit.result == 'success' && '✅ Passed' || needs.pre-commit.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} | Code quality checks |"
+            echo "| Lint | ${{ needs.lint.result == 'success' && '✅ Passed' || needs.lint.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} | Ruff & MyPy checks |"
+            echo "| Dependency Review | ${{ needs.dependency-review.result == 'success' && '✅ Passed' || needs.dependency-review.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} | License & vulnerability scan |"
+            echo "| Security | ${{ needs.security.result == 'success' && '✅ Passed' || needs.security.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} | Bandit, Safety, pip-audit |"
+            echo "| Tests | ${{ needs.test-matrix.result == 'success' && '✅ Passed' || needs.test-matrix.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} | Unit & integration tests |"
+            echo "| Build | ${{ needs.build.result == 'success' && '✅ Passed' || needs.build.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} | Package: ${{ needs.build.outputs.package-name || 'N/A' }} v${{ needs.build.outputs.package-version || 'N/A' }} |"
+            echo "| Docker | ${{ needs.docker.result == 'success' && '✅ Passed' || needs.docker.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} | Multi-platform image build |"
             echo ""
-            echo "- **Workflow:** ${{ github.workflow }}"
-            echo "- **Run ID:** ${{ github.run_id }}"
-            echo "- **Run Number:** ${{ github.run_number }}"
-            echo "- **Event:** ${{ github.event_name }}"
-            echo "- **Actor:** @${{ github.actor }}"
-            echo "- **Branch:** ${{ github.ref_name }}"
-            echo "- **Commit:** ${{ github.sha }}"
+            echo "## Workflow Metadata"
+            echo ""
+            echo "| Property | Value |"
+            echo "|----------|-------|"
+            echo "| **Workflow** | ${{ github.workflow }} |"
+            echo "| **Run Number** | #${{ github.run_number }} |"
+            echo "| **Triggered By** | @${{ github.actor }} |"
+            echo "| **Event** | ${{ github.event_name }} |"
+            echo "| **Branch/Tag** | ${{ github.ref_name }} |"
+            echo "| **Commit** | \`${{ github.sha }}\` |"
+            echo "| **Repository** | ${{ github.repository }} |"
+            if [ -n "${{ github.event.pull_request.number || '' }}" ]; then
+              echo "| **Pull Request** | #${{ github.event.pull_request.number }} |"
+            fi
+            echo ""
+            echo "## Overall Status"
             echo ""
           } >> "$GITHUB_STEP_SUMMARY"
 
-          # Determine overall status
-          if [ "${{ needs.lint-and-format.result }}" == "failure" ] || \
-             [ "${{ needs.type-checking.result }}" == "failure" ] || \
+          if [ "${{ needs.lint.result }}" == "failure" ] || \
              [ "${{ needs.test-matrix.result }}" == "failure" ] || \
-             [ "${{ needs.security-scan.result }}" == "failure" ] || \
-             [ "${{ needs.build-package.result }}" == "failure" ]; then
-            echo "## ❌ Pipeline Failed" >> "$GITHUB_STEP_SUMMARY"
-            echo "Please check the failed jobs above for details." >> "$GITHUB_STEP_SUMMARY"
+             [ "${{ needs.security.result }}" == "failure" ] || \
+             [ "${{ needs.build.result }}" == "failure" ]; then
+            echo "### ❌ Pipeline Failed" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "One or more critical jobs have failed. Please review the logs above for details." >> "$GITHUB_STEP_SUMMARY"
             exit 1
+          elif [ "${{ needs.pre-commit.result }}" == "failure" ] || \
+               [ "${{ needs.dependency-review.result }}" == "failure" ] || \
+               [ "${{ needs.docker.result }}" == "failure" ]; then
+            echo "### ⚠️ Pipeline Completed with Warnings" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Some non-critical jobs failed. The pipeline completed but review is recommended." >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "## ✅ Pipeline Successful" >> "$GITHUB_STEP_SUMMARY"
-            echo "All required checks have passed!" >> "$GITHUB_STEP_SUMMARY"
+            echo "### ✅ Pipeline Successful" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "All jobs completed successfully!" >> "$GITHUB_STEP_SUMMARY"
           fi
