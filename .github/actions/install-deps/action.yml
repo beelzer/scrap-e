@@ -31,8 +31,7 @@ runs:
       run: |
         set -euo pipefail
         echo "::group::Installing dependencies"
-        uv sync --dev --no-install-project
-        uv pip install -e .
+        uv sync --dev
         echo "::endgroup::"
 
     - name: Install additional packages
