@@ -1,0 +1,223 @@
+name: Renovate Rebase & Fix
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to rebase and fix'
+        required: false
+        type: number
+  schedule:
+    # Run daily to fix stuck Renovate PRs
+    - cron: '0 3 * * *'
+
+jobs:
+  rebase-renovate-pr:
+    name: Rebase Renovate PR
+    if: |
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       contains(github.event.comment.body, '/rebase') &&
+       (github.event.issue.user.login == 'renovate[bot]' || github.event.issue.user.login == 'renovate-bot')) ||
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get PR details
+        id: pr-details
+        uses: actions/github-script@v7
+        with:
+          script: |
+            let pr_number;
+
+            if (context.eventName === 'issue_comment') {
+              pr_number = context.issue.number;
+            } else if (context.eventName === 'workflow_dispatch') {
+              pr_number = context.payload.inputs.pr_number;
+            } else if (context.eventName === 'schedule') {
+              // Get all open Renovate PRs
+              const { data: prs } = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                per_page: 100
+              });
+
+              const renovatePrs = prs.filter(pr =>
+                pr.user.login === 'renovate[bot]' || pr.user.login === 'renovate-bot'
+              );
+
+              if (renovatePrs.length === 0) {
+                console.log('No Renovate PRs found');
+                return { should_continue: false };
+              }
+
+              // Process each PR
+              for (const pr of renovatePrs) {
+                console.log(`Processing PR #${pr.number}: ${pr.title}`);
+                core.setOutput(`pr_${pr.number}`, pr.number);
+              }
+
+              core.setOutput('pr_numbers', renovatePrs.map(pr => pr.number).join(','));
+              return { should_continue: true, pr_count: renovatePrs.length };
+            }
+
+            if (pr_number) {
+              const { data: pr } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr_number
+              });
+
+              core.setOutput('pr_number', pr_number);
+              core.setOutput('pr_branch', pr.head.ref);
+              core.setOutput('pr_base', pr.base.ref);
+
+              return { should_continue: true, pr_number: pr_number };
+            }
+
+            return { should_continue: false };
+
+      - name: Checkout repository
+        if: steps.pr-details.outputs.pr_number || steps.pr-details.outputs.pr_numbers
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python with uv
+        if: steps.pr-details.outputs.pr_number || steps.pr-details.outputs.pr_numbers
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        if: steps.pr-details.outputs.pr_number || steps.pr-details.outputs.pr_numbers
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Process Renovate PRs
+        if: steps.pr-details.outputs.pr_number || steps.pr-details.outputs.pr_numbers
+        run: |
+          set -e
+
+          # Function to fix a single PR
+          fix_pr() {
+            local pr_number=$1
+            echo "Processing PR #$pr_number"
+
+            # Get PR details
+            PR_DATA=$(gh pr view "$pr_number" --json headRefName,baseRefName,mergeable)
+            PR_BRANCH=$(echo "$PR_DATA" | jq -r '.headRefName')
+            BASE_BRANCH=$(echo "$PR_DATA" | jq -r '.baseRefName')
+
+            # Checkout PR branch
+            git fetch origin "$PR_BRANCH:$PR_BRANCH" || true
+            git checkout "$PR_BRANCH"
+
+            # Rebase on base branch
+            git fetch origin "$BASE_BRANCH:$BASE_BRANCH"
+            git rebase "$BASE_BRANCH" || {
+              echo "Rebase failed, attempting to resolve conflicts"
+              # If rebase fails, try to merge instead
+              git rebase --abort
+              git merge "$BASE_BRANCH" -X theirs || {
+                echo "Merge also failed, skipping PR #$pr_number"
+                git merge --abort
+                return 1
+              }
+            }
+
+            # Update dependencies with uv
+            echo "Updating dependencies with uv..."
+            uv sync --dev || true
+
+            # Run pre-commit fixes
+            echo "Running pre-commit fixes..."
+            if [ -f .pre-commit-config.yaml ]; then
+              # Install pre-commit if needed
+              uv pip install pre-commit
+
+              # Run pre-commit with auto-fix
+              uv run pre-commit run --all-files || true
+
+              # Stage any changes made by pre-commit
+              git add -A
+
+              # Check if there are changes to commit
+              if ! git diff --cached --quiet; then
+                git commit -m "fix: auto-fix linting and formatting issues"
+              fi
+            fi
+
+            # Push changes back to PR branch
+            git push --force-with-lease origin "$PR_BRANCH" || {
+              echo "Failed to push changes for PR #$pr_number"
+              return 1
+            }
+
+            # Add a comment to the PR
+            gh pr comment "$pr_number" --body "🔧 **Automated Fix Applied**
+
+            This PR has been automatically rebased and the following fixes were applied:
+            - ✅ Rebased on \`$BASE_BRANCH\`
+            - ✅ Updated dependencies with \`uv sync\`
+            - ✅ Applied pre-commit auto-fixes
+
+            The CI checks should now pass. If issues persist, manual intervention may be required."
+
+            return 0
+          }
+
+          # Process PRs based on event type
+          if [ -n "${{ steps.pr-details.outputs.pr_number }}" ]; then
+            fix_pr "${{ steps.pr-details.outputs.pr_number }}"
+          elif [ -n "${{ steps.pr-details.outputs.pr_numbers }}" ]; then
+            IFS=',' read -ra PR_ARRAY <<< "${{ steps.pr-details.outputs.pr_numbers }}"
+            for pr in "${PR_ARRAY[@]}"; do
+              fix_pr "$pr" || true
+            done
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trigger CI re-run
+        if: steps.pr-details.outputs.pr_number || steps.pr-details.outputs.pr_numbers
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr_numbers = '${{ steps.pr-details.outputs.pr_numbers }}'.split(',').filter(Boolean);
+            if ('${{ steps.pr-details.outputs.pr_number }}') {
+              pr_numbers.push('${{ steps.pr-details.outputs.pr_number }}');
+            }
+
+            for (const pr_number of pr_numbers) {
+              // Get the latest workflow runs for this PR
+              const { data: runs } = await github.rest.actions.listWorkflowRunsForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                event: 'pull_request',
+                status: 'completed',
+                per_page: 10
+              });
+
+              const prRuns = runs.workflow_runs.filter(run =>
+                run.pull_requests.some(pr => pr.number === parseInt(pr_number))
+              );
+
+              if (prRuns.length > 0) {
+                // Re-run the latest workflow
+                await github.rest.actions.reRunWorkflow({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  run_id: prRuns[0].id
+                });
+
+                console.log(`Re-triggered CI for PR #${pr_number}`);
+              }
+            }

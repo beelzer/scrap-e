@@ -1,15 +1,155 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    ":semanticCommits",
+    ":dependencyDashboard"
   ],
+  "timezone": "America/New_York",
+  "schedule": ["after 10pm and before 5am on weekdays", "every weekend"],
+  "labels": ["dependencies"],
+  "assignees": ["beelzer"],
+  "reviewers": ["beelzer"],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "rebaseWhen": "behind-base-branch",
+  "semanticCommits": "enabled",
+  "commitMessagePrefix": "chore(deps):",
   "packageRules": [
     {
+      "description": "Python dependencies",
       "matchManagers": ["pip_requirements", "pip_setup", "pipenv", "poetry", "pep621"],
-      "enabled": true
+      "enabled": true,
+      "rangeStrategy": "pin"
+    },
+    {
+      "description": "Automatically merge patch updates for dev dependencies",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash",
+      "labels": ["auto-merge", "dependencies"]
+    },
+    {
+      "description": "Automatically merge minor updates for dev dependencies",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor"],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash",
+      "labels": ["auto-merge", "dependencies"],
+      "schedule": ["after 10pm on weekdays", "every weekend"]
+    },
+    {
+      "description": "Group linting and formatting tools",
+      "matchPackagePatterns": ["^ruff", "^black", "^isort", "^mypy", "^pylint", "^flake8"],
+      "groupName": "linting and formatting tools",
+      "labels": ["linting", "dependencies"]
+    },
+    {
+      "description": "Group testing tools",
+      "matchPackagePatterns": ["^pytest", "^coverage", "^tox", "^hypothesis"],
+      "groupName": "testing tools",
+      "labels": ["testing", "dependencies"]
+    },
+    {
+      "description": "Group documentation tools",
+      "matchPackagePatterns": ["^mkdocs", "^sphinx", "^pydoc"],
+      "groupName": "documentation tools",
+      "labels": ["documentation", "dependencies"]
+    },
+    {
+      "description": "Security updates - high priority",
+      "matchDatasources": ["pypi"],
+      "matchUpdateTypes": ["patch"],
+      "matchPackagePatterns": ["*"],
+      "prPriority": 5,
+      "labels": ["security", "dependencies"],
+      "vulnerabilityAlerts": {
+        "labels": ["security"],
+        "assignees": ["beelzer"],
+        "reviewers": ["beelzer"]
+      }
+    },
+    {
+      "description": "Major version updates require manual review",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["major-update", "dependencies", "needs-review"]
+    },
+    {
+      "description": "Group GitHub Actions updates",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions",
+      "labels": ["ci", "dependencies"],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash"
+    },
+    {
+      "description": "Pin Python version",
+      "matchPackageNames": ["python"],
+      "enabled": false
+    },
+    {
+      "description": "Group all patch updates in a single PR",
+      "matchUpdateTypes": ["patch"],
+      "groupName": "patch updates",
+      "groupSlug": "patch",
+      "labels": ["patch-updates", "dependencies"]
+    },
+    {
+      "description": "Slow down updates for less critical packages",
+      "matchPackagePatterns": ["^types-", "^stubs-"],
+      "schedule": ["monthly"],
+      "labels": ["type-stubs", "dependencies"]
     }
   ],
-  "prConcurrentLimit": 3,
-  "prHourlyLimit": 2,
-  "automerge": false
+  "postUpdateOptions": [
+    "gomodTidy",
+    "npmDedupe",
+    "yarnDedupeHighest"
+  ],
+  "prBodyColumns": [
+    "Package",
+    "Type",
+    "Current",
+    "Update",
+    "Change"
+  ],
+  "prBodyNotes": [
+    "🤖 This PR was created by Renovate Bot.",
+    "📝 Review the changes and ensure all tests pass before merging.",
+    "✅ Patch and minor updates for dev dependencies will be auto-merged if CI passes."
+  ],
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/vendor/**",
+    "**/test/fixtures/**"
+  ],
+  "ignoreDeps": [],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security", "urgent"],
+    "assignees": ["beelzer"],
+    "reviewers": ["beelzer"]
+  },
+  "dependencyDashboard": true,
+  "dependencyDashboardTitle": "📦 Dependency Dashboard",
+  "dependencyDashboardLabels": ["dependencies", "renovate"],
+  "suppressNotifications": ["prIgnoreNotification"],
+  "recreateClosed": true,
+  "rebaseLabel": "needs-rebase",
+  "stopUpdatingLabel": "stop-updating",
+  "minimumReleaseAge": "3 days",
+  "internalChecksFilter": "strict",
+  "updateNotScheduled": false,
+  "prCreation": "immediate",
+  "automerge": false,
+  "platformAutomerge": true,
+  "branchPrefix": "renovate/",
+  "branchTopic": "{{{depNameSanitized}}}-{{{newMajor}}}{{#if separateMinorPatch}}{{#if isPatch}}.{{{newMinor}}}{{/if}}{{/if}}.x{{#if isLockfileUpdate}}-lockfile{{/if}}",
+  "commitMessage": "chore(deps): update {{{depName}}} from {{{currentVersion}}} to {{{newVersion}}}",
+  "gitIgnoredAuthors": ["renovate-bot@users.noreply.github.com"]
 }
