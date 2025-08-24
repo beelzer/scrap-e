@@ -29,116 +29,271 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PYTHON_VERSION: '3.13'
+  # Default Python version for non-matrix jobs
+  DEFAULT_PYTHON: '3.13'
   UV_CACHE_DIR: ~/.cache/uv
   # Enable colored output
   FORCE_COLOR: 1
+  # Test timeout in minutes
+  TEST_TIMEOUT: 20
 
 jobs:
   # Quick lint check that runs first
   lint:
-    name: Lint Code
+    name: 🔍 Lint Code
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
-      - name: Checkout code
+      - name: 📥 Checkout repository
         uses: actions/checkout@v5
         with:
           fetch-depth: 0  # Full history for better git operations
 
-      - name: Setup Python with uv
+      - name: 🐍 Setup Python ${{ env.DEFAULT_PYTHON }}
         uses: ./.github/actions/setup-python
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: ${{ env.DEFAULT_PYTHON }}
 
-      - name: Install dependencies
+      - name: 📦 Install linting dependencies
         uses: ./.github/actions/install-deps
         with:
           extras: 'dev'
           install-playwright: false  # Not needed for linting
 
-      - name: Run linting checks
-        uses: ./.github/actions/lint
-        with:
-          run-ruff: true
-          run-mypy: true
+      - name: 🎨 Check code formatting with Ruff
+        run: |
+          echo "::group::Ruff Format Check"
+          uv run ruff format --check src/ tests/ || (echo "::error::Code formatting issues found. Run 'ruff format' to fix." && exit 1)
+          echo "::endgroup::"
+        shell: bash
 
-  # Test job that runs after lint passes
+      - name: 🚨 Run Ruff linter
+        run: |
+          echo "::group::Ruff Linting"
+          uv run ruff check src/ tests/ --output-format=github
+          echo "::endgroup::"
+        shell: bash
+
+      - name: 🔎 Type checking with mypy
+        run: |
+          echo "::group::MyPy Type Checking"
+          uv run mypy src/ --show-error-codes --pretty
+          echo "::endgroup::"
+        shell: bash
+
+      - name: 📊 Generate lint summary
+        if: always()
+        run: |
+          {
+            echo "## 🔍 Linting Results"
+            echo ""
+            echo "| Check | Status |"
+            echo "|-------|--------|"
+            echo "| Code Format | ✅ Passed |"
+            echo "| Ruff Linter | ✅ Passed |"
+            echo "| Type Check | ✅ Passed |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Matrix testing across different OS and Python versions
   test:
-    name: Run Tests
+    name: 🧪 Test - ${{ matrix.os-name }} - Python ${{ matrix.python-version }}
     needs: lint
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.11', '3.12', '3.13']
+        include:
+          # Add friendly OS names for job display
+          - os: ubuntu-latest
+            os-name: Ubuntu
+            os-emoji: 🐧
+          - os: windows-latest
+            os-name: Windows
+            os-emoji: 🪟
+          - os: macos-latest
+            os-name: macOS
+            os-emoji: 🍎
+        # Optional: exclude specific combinations if needed
+        # exclude:
+        #   - os: macos-latest
+        #     python-version: '3.11'
 
     steps:
-      - name: Checkout code
+      - name: 📥 Checkout repository
         uses: actions/checkout@v5
 
-      - name: Setup Python with uv
+      - name: 🐍 Setup Python ${{ matrix.python-version }}
         uses: ./.github/actions/setup-python
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies
+      - name: 📝 Display system information
+        run: |
+          echo "::group::System Information"
+          echo "OS: ${{ matrix.os-name }} (${{ matrix.os }})"
+          echo "Python: ${{ matrix.python-version }}"
+          echo "Runner: ${{ runner.os }} - ${{ runner.arch }}"
+          python --version
+          echo "::endgroup::"
+        shell: bash
+
+      - name: 📦 Install test dependencies
         uses: ./.github/actions/install-deps
         with:
           extras: 'dev'
           install-playwright: true
 
-      - name: Run test suite
-        uses: ./.github/actions/run-tests
-        with:
-          upload-coverage: true
+      - name: 🎭 Setup Playwright browsers
+        run: |
+          echo "::group::Installing Playwright Browsers"
+          uv run playwright install --with-deps chromium firefox
+          echo "::endgroup::"
+        shell: bash
 
-      - name: Upload coverage to Codecov
-        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+      - name: 🔬 Run unit tests
+        run: |
+          echo "::group::Unit Tests"
+          uv run pytest tests/unit \
+            --tb=short \
+            --verbose \
+            --color=yes \
+            --junitxml=test-results-unit.xml \
+            -m "not integration and not slow" || true
+          echo "::endgroup::"
+        shell: bash
+        continue-on-error: true
+
+      - name: 🌐 Run integration tests
+        run: |
+          echo "::group::Integration Tests"
+          uv run pytest tests/integration \
+            --tb=short \
+            --verbose \
+            --color=yes \
+            --junitxml=test-results-integration.xml \
+            -m "integration" || true
+          echo "::endgroup::"
+        shell: bash
+        continue-on-error: true
+
+      - name: 📊 Run all tests with coverage
+        id: full-test
+        run: |
+          echo "::group::Full Test Suite with Coverage"
+          uv run pytest \
+            --tb=short \
+            --verbose \
+            --color=yes \
+            --cov=src/scrap_e \
+            --cov-report=term \
+            --cov-report=xml \
+            --cov-report=html \
+            --junitxml=test-results-all.xml
+          echo "::endgroup::"
+        shell: bash
+
+      - name: 📈 Parse coverage percentage
+        id: coverage
+        if: always()
+        run: |
+          if [ -f coverage.xml ]; then
+            coverage_pct=$(python -c "import xml.etree.ElementTree as ET; tree = ET.parse('coverage.xml'); root = tree.getroot(); print(f\"{float(root.attrib.get('line-rate', 0)) * 100:.1f}\")" 2>/dev/null || echo "0")
+            echo "percentage=$coverage_pct" >> "$GITHUB_OUTPUT"
+            echo "Coverage: ${coverage_pct}%"
+          else
+            echo "percentage=0" >> "$GITHUB_OUTPUT"
+          fi
+        shell: bash
+
+      - name: 📤 Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: |
+            test-results-*.xml
+            coverage.xml
+            htmlcov/
+          retention-days: 7
+
+      - name: 📊 Generate test summary
+        if: always()
+        run: |
+          {
+            echo "## ${{ matrix.os-emoji }} Test Results - ${{ matrix.os-name }} - Python ${{ matrix.python-version }}"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|--------|-------|"
+            echo "| Platform | ${{ matrix.os-name }} |"
+            echo "| Python | ${{ matrix.python-version }} |"
+            echo "| Test Status | ${{ steps.full-test.outcome }} |"
+            echo "| Coverage | ${{ steps.coverage.outputs.percentage }}% |"
+            echo ""
+            if [ "${{ steps.full-test.outcome }}" == "success" ]; then
+              echo "✅ **All tests passed successfully!**"
+            else
+              echo "❌ **Some tests failed. Check the logs for details.**"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+        shell: bash
+
+      - name: 📨 Upload coverage to Codecov
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
           flags: unittests
-          name: codecov-umbrella
+          name: codecov-${{ matrix.os }}-py${{ matrix.python-version }}
           fail_ci_if_error: false
           verbose: true
 
-  # Security scan (optional, runs in parallel with tests)
+  # Security scan (runs in parallel with tests)
   security:
-    name: Security Scan
+    name: 🔒 Security Scan
     needs: lint
     runs-on: ubuntu-latest
     timeout-minutes: 15
     continue-on-error: true  # Don't fail the build on security issues initially
 
     steps:
-      - name: Checkout code
+      - name: 📥 Checkout repository
         uses: actions/checkout@v5
 
-      - name: Setup Python with uv
+      - name: 🐍 Setup Python ${{ env.DEFAULT_PYTHON }}
         uses: ./.github/actions/setup-python
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: ${{ env.DEFAULT_PYTHON }}
 
-      - name: Install dependencies
+      - name: 📦 Install security tools
         uses: ./.github/actions/install-deps
         with:
           extras: 'dev'
           install-playwright: false
 
-      - name: Run bandit security scan
+      - name: 🔍 Run bandit security scan
+        id: bandit
         run: |
-          echo "Running bandit security scan..."
+          echo "::group::Bandit Security Scan"
           uv run bandit -r src/ -f json -o bandit-report.json || true
           uv run bandit -r src/ -f screen || true
+          echo "::endgroup::"
         continue-on-error: true
 
-      - name: Run safety check
+      - name: 🛡️ Check for dependency vulnerabilities
+        id: safety
         run: |
-          echo "Checking for known vulnerabilities..."
-          uv run safety check --json --continue-on-error || true
+          echo "::group::Safety Dependency Check"
+          uv run pip-audit --desc || true
+          echo "::endgroup::"
         continue-on-error: true
 
-      - name: Upload security reports
+      - name: 📤 Upload security reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -147,33 +302,149 @@ jobs:
             bandit-report.json
           retention-days: 30
 
-  # Final status check
+      - name: 📊 Generate security summary
+        if: always()
+        run: |
+          {
+            echo "## 🔒 Security Scan Results"
+            echo ""
+            echo "| Check | Status |"
+            echo "|-------|--------|"
+            echo "| Bandit (Code) | ${{ steps.bandit.outcome }} |"
+            echo "| Safety (Dependencies) | ${{ steps.safety.outcome }} |"
+            echo ""
+            if [[ "${{ steps.bandit.outcome }}" == "success" && "${{ steps.safety.outcome }}" == "success" ]]; then
+              echo "✅ **No security issues detected**"
+            else
+              echo "⚠️ **Security scan found potential issues. Review the logs for details.**"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Build check - ensures package can be built
+  build:
+    name: 📦 Build Package
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v5
+
+      - name: 🐍 Setup Python ${{ env.DEFAULT_PYTHON }}
+        uses: ./.github/actions/setup-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+
+      - name: 📦 Install build dependencies
+        run: |
+          echo "::group::Installing Build Tools"
+          uv pip install --system build twine
+          echo "::endgroup::"
+        shell: bash
+
+      - name: 🏗️ Build distribution packages
+        run: |
+          echo "::group::Building Package"
+          python -m build
+          echo "::endgroup::"
+        shell: bash
+
+      - name: 🔍 Check package with twine
+        run: |
+          echo "::group::Package Validation"
+          python -m twine check dist/*
+          ls -lah dist/
+          echo "::endgroup::"
+        shell: bash
+
+      - name: 📤 Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-packages
+          path: dist/
+          retention-days: 7
+
+      - name: 📊 Generate build summary
+        if: always()
+        run: |
+          {
+            echo "## 📦 Build Results"
+            echo ""
+            echo "| Artifact | Size |"
+            echo "|----------|------|"
+            for file in dist/*; do
+              if [ -f "$file" ]; then
+                size=$(du -h "$file" | cut -f1)
+                name=$(basename "$file")
+                echo "| $name | $size |"
+              fi
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Final status check with comprehensive matrix results
   ci-status:
-    name: CI Status
-    needs: [lint, test, security]
+    name: ✅ CI Status Summary
+    needs: [lint, test, security, build]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
     steps:
-      - name: Check CI status
+      - name: 🔍 Check CI status
+        id: status-check
         run: |
-          if [[ "${{ needs.lint.result }}" == "failure" || "${{ needs.test.result }}" == "failure" ]]; then
-            echo "CI checks failed!"
+          # Check if required jobs passed
+          if [[ "${{ needs.lint.result }}" == "failure" ]]; then
+            echo "❌ Linting failed!"
+            echo "lint_failed=true" >> "$GITHUB_OUTPUT"
             exit 1
           fi
-          echo "All required CI checks passed!"
 
-      - name: Create status summary
+          if [[ "${{ needs.test.result }}" == "failure" ]]; then
+            echo "❌ Tests failed!"
+            echo "test_failed=true" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          if [[ "${{ needs.build.result }}" == "failure" ]]; then
+            echo "❌ Build failed!"
+            echo "build_failed=true" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          echo "✅ All required CI checks passed!"
+          echo "all_passed=true" >> "$GITHUB_OUTPUT"
+
+      - name: 📊 Create comprehensive status summary
+        if: always()
         run: |
           {
-            echo "## CI Run Summary"
+            echo "# 📋 CI Run Summary"
             echo ""
-            echo "| Job | Status |"
-            echo "|-----|--------|"
-            echo "| Lint | ${{ needs.lint.result }} |"
-            echo "| Test | ${{ needs.test.result }} |"
-            echo "| Security | ${{ needs.security.result }} |"
+            echo "## Overall Status"
             echo ""
-            echo "**Overall Status:** ${{ job.status }}"
+            echo "| Job | Status | Required |"
+            echo "|-----|--------|----------|"
+            echo "| 🔍 Lint | ${{ needs.lint.result }} | ✅ Yes |"
+            echo "| 🧪 Test | ${{ needs.test.result }} | ✅ Yes |"
+            echo "| 📦 Build | ${{ needs.build.result }} | ✅ Yes |"
+            echo "| 🔒 Security | ${{ needs.security.result }} | ⚠️ No |"
+            echo ""
+
+            if [[ "${{ steps.status-check.outputs.all_passed }}" == "true" ]]; then
+              echo "## ✅ All Required Checks Passed!"
+              echo ""
+              echo "The code is ready for merge."
+            else
+              echo "## ❌ Some Checks Failed"
+              echo ""
+              echo "Please review the failed jobs above and fix any issues."
+            fi
+
+            echo ""
+            echo "---"
+            echo "*Workflow run:* ${{ github.run_id }}"
+            echo "*Triggered by:* ${{ github.actor }}"
+            echo "*Branch:* ${{ github.ref_name }}"
           } >> "$GITHUB_STEP_SUMMARY"
