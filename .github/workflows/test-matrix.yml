@@ -30,8 +30,8 @@ jobs:
         run: |
           # Default values for scheduled runs
           if [[ "${{ github.event_name }}" == "schedule" ]]; then
-            echo "python-versions=[\"3.12\", \"3.13\"]" >> $GITHUB_OUTPUT
-            echo "os-list=[\"ubuntu-latest\", \"windows-latest\", \"macos-latest\"]" >> $GITHUB_OUTPUT
+            echo "python-versions=[\"3.12\", \"3.13\"]" >> "$GITHUB_OUTPUT"
+            echo "os-list=[\"ubuntu-latest\", \"windows-latest\", \"macos-latest\"]" >> "$GITHUB_OUTPUT"
           else
             # Parse manual inputs
             PYTHON_VERSIONS="${{ github.event.inputs.python-versions || '3.13' }}"
@@ -41,8 +41,8 @@ jobs:
             PYTHON_JSON=$(echo "$PYTHON_VERSIONS" | sed 's/,/", "/g' | sed 's/^/["/' | sed 's/$/"]/')
             OS_JSON=$(echo "$OS_MATRIX" | sed 's/,/", "/g' | sed 's/^/["/' | sed 's/$/"]/')
 
-            echo "python-versions=$PYTHON_JSON" >> $GITHUB_OUTPUT
-            echo "os-list=$OS_JSON" >> $GITHUB_OUTPUT
+            echo "python-versions=$PYTHON_JSON" >> "$GITHUB_OUTPUT"
+            echo "os-list=$OS_JSON" >> "$GITHUB_OUTPUT"
           fi
 
   test-matrix:
@@ -75,8 +75,8 @@ jobs:
       - name: Run linting
         uses: ./.github/actions/lint
         with:
-          check-types: ${{ matrix.python-version == '3.13' }}  # Only run mypy on latest Python
-          fail-on-error: true
+          run-ruff: true
+          run-mypy: ${{ matrix.python-version == '3.13' }}  # Only run mypy on latest Python
 
       - name: Run tests
         uses: ./.github/actions/run-tests
@@ -100,8 +100,10 @@ jobs:
 
       - name: Create summary
         run: |
-          echo "## Test Matrix Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Status:** ${{ needs.test-matrix.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Matrix testing completed across multiple Python versions and operating systems." >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Test Matrix Summary"
+            echo ""
+            echo "**Status:** ${{ needs.test-matrix.result }}"
+            echo ""
+            echo "Matrix testing completed across multiple Python versions and operating systems."
+          } >> "$GITHUB_STEP_SUMMARY"

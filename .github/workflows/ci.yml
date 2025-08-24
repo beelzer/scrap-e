@@ -61,8 +61,8 @@ jobs:
       - name: Run linting checks
         uses: ./.github/actions/lint
         with:
-          check-types: true
-          fail-on-error: true
+          run-ruff: true
+          run-mypy: true
 
   # Test job that runs after lint passes
   test:
@@ -166,12 +166,14 @@ jobs:
 
       - name: Create status summary
         run: |
-          echo "## CI Run Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Lint | ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Test | ${{ needs.test.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Security | ${{ needs.security.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Overall Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## CI Run Summary"
+            echo ""
+            echo "| Job | Status |"
+            echo "|-----|--------|"
+            echo "| Lint | ${{ needs.lint.result }} |"
+            echo "| Test | ${{ needs.test.result }} |"
+            echo "| Security | ${{ needs.security.result }} |"
+            echo ""
+            echo "**Overall Status:** ${{ job.status }}"
+          } >> "$GITHUB_STEP_SUMMARY"
