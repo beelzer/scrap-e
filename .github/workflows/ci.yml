@@ -108,7 +108,7 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ['3.11', '3.12', '3.13']
         include:
-          # Add friendly OS names for job display
+          # Add friendly OS names for the job display
           - os: ubuntu-latest
             os-name: Ubuntu
             os-emoji: 🐧
@@ -320,10 +320,10 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # Build check - ensures package can be built
+  # Build check - ensures the package can be built
   build:
     name: 📦 Build Package
-    needs: lint
+    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
