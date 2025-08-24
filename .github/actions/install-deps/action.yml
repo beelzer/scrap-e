@@ -23,7 +23,7 @@ runs:
           # Special handling for 'dev' which means all dev dependencies
           if [ "${{ inputs.extras }}" = "dev" ]; then
             echo "Installing all dev dependencies..."
-            uv sync --all-extras
+            uv sync --extra dev
           else
             # Convert comma-separated extras to multiple --extra flags
             EXTRAS_FLAGS=""
@@ -35,14 +35,14 @@ runs:
           fi
         fi
       shell: bash
-      
+
     - name: Install Playwright browsers
       if: inputs.install-playwright == 'true'
       run: |
         echo "Installing Playwright browsers..."
         uv run playwright install --with-deps chromium firefox
       shell: bash
-      
+
     - name: Show installed packages
       run: |
         echo "Installed packages:"
