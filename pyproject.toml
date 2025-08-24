@@ -78,7 +78,7 @@ dev = [
     # Code quality & linting
     "ruff==0.12.9",
     "mypy==1.17.1",
-    "pre-commit==4.1.0",  # Already latest
+    "pre-commit==4.3.0",  # Already latest
 
     # Type stubs
     "types-beautifulsoup4",
