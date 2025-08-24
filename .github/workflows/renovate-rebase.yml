@@ -13,6 +13,11 @@ on:
     # Run daily to fix stuck Renovate PRs
     - cron: '0 3 * * *'
 
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
 jobs:
   rebase-renovate-pr:
     name: Rebase Renovate PR
