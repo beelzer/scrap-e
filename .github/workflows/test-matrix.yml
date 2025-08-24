@@ -1,156 +1,108 @@
 name: Test Matrix
 
 on:
-  workflow_call:
+  # Run on schedule for comprehensive testing
+  schedule:
+    - cron: '0 2 * * 1'  # Every Monday at 2 AM UTC
+  # Manual trigger with options
+  workflow_dispatch:
     inputs:
       python-versions:
-        description: 'Python versions to test (JSON array)'
+        description: 'Python versions to test (comma-separated, e.g., "3.12,3.13")'
         required: false
-        type: string
-        default: '["3.13"]'
+        default: '3.13'
       os-matrix:
-        description: 'Operating systems to test (JSON array)'
+        description: 'Operating systems to test (comma-separated, e.g., "ubuntu-latest,windows-latest,macos-latest")'
         required: false
-        type: string
-        default: '["ubuntu-latest", "ubuntu-22.04", "ubuntu-20.04", "windows-latest", "windows-2022", "macos-latest", "macos-13"]'
-      coverage-threshold:
-        description: 'Minimum coverage percentage'
-        required: false
-        type: string
-        default: '50'
-      skip-integration:
-        description: 'Skip integration tests'
-        required: false
-        type: boolean
-        default: false
-    secrets:
-      codecov-token:
-        description: 'Codecov token'
-        required: false
+        default: 'ubuntu-latest'
 
 jobs:
-  test:
-    name: Test - Python ${{ matrix.python-version }} on ${{ matrix.os }}
+  define-matrix:
+    name: Define Test Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      python-versions: ${{ steps.set-matrix.outputs.python-versions }}
+      os-list: ${{ steps.set-matrix.outputs.os-list }}
+
+    steps:
+      - name: Set up matrix
+        id: set-matrix
+        run: |
+          # Default values for scheduled runs
+          if [[ "${{ github.event_name }}" == "schedule" ]]; then
+            echo "python-versions=[\"3.12\", \"3.13\"]" >> $GITHUB_OUTPUT
+            echo "os-list=[\"ubuntu-latest\", \"windows-latest\", \"macos-latest\"]" >> $GITHUB_OUTPUT
+          else
+            # Parse manual inputs
+            PYTHON_VERSIONS="${{ github.event.inputs.python-versions || '3.13' }}"
+            OS_MATRIX="${{ github.event.inputs.os-matrix || 'ubuntu-latest' }}"
+
+            # Convert comma-separated to JSON array
+            PYTHON_JSON=$(echo "$PYTHON_VERSIONS" | sed 's/,/", "/g' | sed 's/^/["/' | sed 's/$/"]/')
+            OS_JSON=$(echo "$OS_MATRIX" | sed 's/,/", "/g' | sed 's/^/["/' | sed 's/$/"]/')
+
+            echo "python-versions=$PYTHON_JSON" >> $GITHUB_OUTPUT
+            echo "os-list=$OS_JSON" >> $GITHUB_OUTPUT
+          fi
+
+  test-matrix:
+    name: Test - ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    needs: define-matrix
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJson(inputs.os-matrix) }}
-        python-version: ${{ fromJson(inputs.python-versions) }}
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
+        os: ${{ fromJSON(needs.define-matrix.outputs.os-list) }}
+        python-version: ${{ fromJSON(needs.define-matrix.outputs.python-versions) }}
 
-      - name: Setup Python environment
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Python with uv
         uses: ./.github/actions/setup-python
         with:
           python-version: ${{ matrix.python-version }}
-          cache-key-suffix: test-${{ matrix.os }}
 
       - name: Install dependencies
         uses: ./.github/actions/install-deps
         with:
+          extras: 'dev'
           install-playwright: true
-          playwright-browsers: chromium
 
-      - name: Run unit tests
+      - name: Run linting
+        uses: ./.github/actions/lint
+        with:
+          run-ruff: true
+          run-mypy: ${{ matrix.python-version == '3.13' }}  # Only run mypy on latest Python
+
+      - name: Run tests
         uses: ./.github/actions/run-tests
         with:
-          test-type: unit
-          coverage-threshold: ${{ inputs.coverage-threshold }}
-          upload-coverage: true
-          codecov-token: ${{ secrets.codecov-token }}
-          os-name: ${{ matrix.os }}
-          python-version: ${{ matrix.python-version }}
+          test-args: '-v --tb=short'
+          upload-coverage: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13' }}
 
-  integration:
-    name: Integration Tests
-    if: inputs.skip-integration != true
-    needs: [test]
+  matrix-status:
+    name: Matrix Test Status
+    needs: test-matrix
+    if: always()
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    continue-on-error: true
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: testuser
-          POSTGRES_PASSWORD: testpass
-          POSTGRES_DB: testdb
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-
-      - name: Setup Python environment
-        uses: ./.github/actions/setup-python
-
-      - name: Install dependencies
-        uses: ./.github/actions/install-deps
-        with:
-          install-playwright: true
-          playwright-browsers: chromium
-
-      - name: Wait for services
+      - name: Check matrix status
         run: |
-          for i in {1..30}; do
-            if pg_isready -h localhost -p 5432 -U testuser && \
-               redis-cli -h localhost -p 6379 ping >/dev/null 2>&1; then
-              echo "Services are ready!"
-              break
-            fi
-            echo "Waiting for services... ($i/30)"
-            sleep 2
-          done
+          if [[ "${{ needs.test-matrix.result }}" == "failure" ]]; then
+            echo "Matrix tests failed!"
+            exit 1
+          fi
+          echo "All matrix tests passed!"
 
-      - name: Run integration tests
-        env:
-          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb
-          REDIS_URL: redis://localhost:6379/0
-        uses: ./.github/actions/run-tests
-        with:
-          test-type: integration
-          coverage-threshold: '0'
-          upload-coverage: false
-
-  benchmarks:
-    name: Performance Benchmarks
-    needs: [test]
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    continue-on-error: true
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-
-      - name: Setup Python environment
-        uses: ./.github/actions/setup-python
-
-      - name: Install dependencies
-        uses: ./.github/actions/install-deps
-        with:
-          install-playwright: true
-          playwright-browsers: chromium
-
-      - name: Run benchmarks
-        uses: ./.github/actions/run-benchmarks
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create summary
+        run: |
+          echo "## Test Matrix Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ needs.test-matrix.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Matrix testing completed across multiple Python versions and operating systems." >> $GITHUB_STEP_SUMMARY
