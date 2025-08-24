@@ -30,7 +30,17 @@
       "Bash(grep:*)",
       "WebSearch",
       "WebFetch(domain:github.com)",
-      "Bash(/dev/null)"
+      "Bash(/dev/null)",
+      "Bash(for action in setup-python install-deps lint run-tests build-package security-scan run-benchmarks)",
+      "Bash(do)",
+      "Bash(if [ -f \".github/actions/$action/action.yml\" ])",
+      "Bash(then)",
+      "Bash(echo:*)",
+      "Bash(else)",
+      "Bash(fi)",
+      "Bash(done)",
+      "Bash(docker:*)",
+      "Read(/C:\\home\\runner\\work\\scrap-e\\scrap-e\\.github/**)"
     ],
     "deny": [],
     "ask": [],
