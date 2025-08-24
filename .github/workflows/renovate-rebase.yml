@@ -98,12 +98,16 @@ jobs:
         if: steps.pr-details.outputs.pr_number || steps.pr-details.outputs.pr_numbers
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
       - name: Process Renovate PRs
         if: steps.pr-details.outputs.pr_number || steps.pr-details.outputs.pr_numbers
         run: |
           set -e
+
+          # Configure git
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
 
           # Function to fix a single PR
           fix_pr() {
