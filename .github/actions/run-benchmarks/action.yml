@@ -20,7 +20,7 @@ runs:
     - name: Create benchmarks directory
       run: mkdir -p .benchmarks
       shell: bash
-      
+
     - name: Run performance benchmarks
       run: |
         echo "Running performance benchmarks..."
@@ -34,16 +34,16 @@ runs:
           --benchmark-min-rounds=5 \
           ${{ inputs.benchmark-args }} || true
       shell: bash
-      
+
     - name: Compare with baseline
       if: inputs.compare-with != ''
       run: |
         echo "Comparing with baseline: ${{ inputs.compare-with }}"
-        
+
         # Checkout baseline for comparison
         git fetch origin ${{ inputs.compare-with }}:baseline_branch || true
         git checkout baseline_branch -- . || true
-        
+
         # Run baseline benchmarks
         uv run pytest \
           tests/ \
@@ -52,7 +52,7 @@ runs:
           --benchmark-json=.benchmarks/baseline_results.json \
           --benchmark-max-time=2 \
           --benchmark-min-rounds=5 || true
-        
+
         # Compare results
         if [ -f ".benchmarks/baseline_results.json" ] && [ -f ".benchmarks/benchmark_results.json" ]; then
           uv run pytest-benchmark compare \
@@ -60,21 +60,21 @@ runs:
             .benchmarks/benchmark_results.json \
             --csv=.benchmarks/comparison.csv || true
         fi
-        
+
         # Return to original branch
         git checkout - || true
       shell: bash
-      
+
     - name: Generate benchmark report
       if: always()
       run: |
         echo "## Benchmark Results" >> benchmark-summary.md
         echo "" >> benchmark-summary.md
-        
+
         if [ -f ".benchmarks/benchmark_results.json" ]; then
           echo "Performance benchmarks completed successfully." >> benchmark-summary.md
           echo "Results saved to: .benchmarks/benchmark_results.json" >> benchmark-summary.md
-          
+
           # Extract key metrics from JSON if possible
           echo "" >> benchmark-summary.md
           echo "### Benchmark Results" >> benchmark-summary.md
@@ -82,14 +82,14 @@ runs:
         else
           echo "No benchmark results generated." >> benchmark-summary.md
         fi
-        
+
         if [ -f ".benchmarks/comparison.csv" ]; then
           echo "" >> benchmark-summary.md
           echo "### Comparison with baseline" >> benchmark-summary.md
           echo "Comparison data saved to: .benchmarks/comparison.csv" >> benchmark-summary.md
         fi
       shell: bash
-      
+
     - name: Upload benchmark results
       if: inputs.save-results == 'true' && always()
       uses: actions/upload-artifact@v4
