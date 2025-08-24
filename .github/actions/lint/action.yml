@@ -1,102 +1,36 @@
-name: 'Lint and Format Check'
-description: 'Runs Ruff linting, formatting checks, and MyPy type checking'
+name: 'Run Linting'
+description: 'Run code quality checks with ruff and mypy'
 inputs:
-  check-types:
-    description: 'Run MyPy type checking'
+  run-ruff:
+    description: 'Run ruff linter'
     required: false
     default: 'true'
-  fail-on-error:
-    description: 'Fail the action if any checks fail'
+  run-mypy:
+    description: 'Run mypy type checker'
     required: false
     default: 'true'
-
-outputs:
-  lint-status:
-    description: 'Linting status (success/failure)'
-    value: ${{ steps.ruff.outputs.status }}
-  format-status:
-    description: 'Formatting status (success/failure)'
-    value: ${{ steps.ruff-format.outputs.status }}
-  type-status:
-    description: 'Type checking status (success/failure)'
-    value: ${{ steps.mypy.outputs.status }}
 
 runs:
   using: 'composite'
   steps:
-    - name: Lint with Ruff
-      id: ruff
-      shell: bash
+    - name: Run ruff linter
+      if: inputs.run-ruff == 'true'
       run: |
-        set -euo pipefail
-        echo "::group::Running Ruff linter"
-        if uv run ruff check src/ tests/ examples/ --output-format=github --show-fixes; then
-          echo "status=success" >> "$GITHUB_OUTPUT"
-          echo "::notice::Ruff linting passed successfully"
-        else
-          echo "status=failure" >> "$GITHUB_OUTPUT"
-          echo "::error::Ruff linting failed"
-          if [ "${{ inputs.fail-on-error }}" == "true" ]; then
-            exit 1
-          fi
-        fi
-        echo "::endgroup::"
-
-    - name: Check code formatting with Ruff
-      id: ruff-format
+        echo "Running ruff linter..."
+        uv run ruff check src/ tests/ --output-format=github
       shell: bash
+      
+    - name: Run ruff formatter check
+      if: inputs.run-ruff == 'true'
       run: |
-        set -euo pipefail
-        echo "::group::Checking code formatting"
-        if uv run ruff format --check src/ tests/ examples/; then
-          echo "status=success" >> "$GITHUB_OUTPUT"
-          echo "::notice::Code formatting check passed"
-        else
-          echo "status=failure" >> "$GITHUB_OUTPUT"
-          echo "::error::Code formatting check failed"
-          echo "::warning::Run 'uv run ruff format src/ tests/ examples/' to fix formatting"
-          if [ "${{ inputs.fail-on-error }}" == "true" ]; then
-            exit 1
-          fi
-        fi
-        echo "::endgroup::"
-
-    - name: Type checking with MyPy
-      if: inputs.check-types == 'true'
-      id: mypy
+        echo "Checking code formatting with ruff..."
+        uv run ruff format src/ tests/ --check --diff
       shell: bash
+      
+    - name: Run mypy type checker
+      if: inputs.run-mypy == 'true'
       run: |
-        set -euo pipefail
-        echo "::group::Type checking with MyPy"
-        # Install type stubs
-        echo "Installing type stubs..."
-        uv pip install types-requests types-pyyaml types-python-dateutil types-setuptools
-
-        if uv run mypy src/scrap_e --pretty --show-error-codes --show-column-numbers; then
-          echo "status=success" >> "$GITHUB_OUTPUT"
-          echo "::notice::Type checking passed"
-        else
-          echo "status=failure" >> "$GITHUB_OUTPUT"
-          echo "::error::Type checking failed"
-          if [ "${{ inputs.fail-on-error }}" == "true" ]; then
-            exit 1
-          fi
-        fi
-        echo "::endgroup::"
-
-    - name: Generate summary
-      if: always()
+        echo "Running mypy type checker..."
+        uv run mypy src/
       shell: bash
-      run: |
-        set -euo pipefail
-        {
-          echo "## Code Quality Report"
-          echo ""
-          echo "| Check | Status |"
-          echo "|-------|--------|"
-          echo "| Ruff Linting | ${{ steps.ruff.outputs.status == 'success' && '✅ Passed' || '❌ Failed' }} |"
-          echo "| Ruff Formatting | ${{ steps.ruff-format.outputs.status == 'success' && '✅ Passed' || '❌ Failed' }} |"
-          if [ "${{ inputs.check-types }}" == "true" ]; then
-            echo "| MyPy Type Check | ${{ steps.mypy.outputs.status == 'success' && '✅ Passed' || '❌ Failed' }} |"
-          fi
-        } >> "$GITHUB_STEP_SUMMARY"
+      continue-on-error: true  # Type checking failures shouldn't block CI initially

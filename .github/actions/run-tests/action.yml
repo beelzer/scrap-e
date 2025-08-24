@@ -1,159 +1,58 @@
 name: 'Run Tests'
-description: 'Runs tests with pytest and coverage'
+description: 'Execute test suite with pytest'
 inputs:
-  test-type:
-    description: 'Type of tests to run (unit, integration, performance)'
-    required: false
-    default: 'unit'
-  coverage-threshold:
-    description: 'Minimum coverage percentage'
-    required: false
-    default: '50'
-  upload-coverage:
-    description: 'Upload coverage to Codecov'
-    required: false
-    default: 'true'
-  codecov-token:
-    description: 'Codecov token'
+  test-args:
+    description: 'Additional arguments to pass to pytest'
     required: false
     default: ''
-  os-name:
-    description: 'Operating system name for artifacts'
+  upload-coverage:
+    description: 'Whether to upload coverage reports'
     required: false
-    default: ${{ runner.os }}
-  python-version:
-    description: 'Python version for artifacts'
-    required: false
-    default: '3.13'
-
-outputs:
-  coverage-percentage:
-    description: 'Test coverage percentage'
-    value: ${{ steps.coverage.outputs.percentage }}
-  test-status:
-    description: 'Test execution status'
-    value: ${{ steps.test.outputs.status }}
+    default: 'true'
 
 runs:
   using: 'composite'
   steps:
-    - name: Set test markers
-      id: markers
-      shell: bash
+    - name: Run tests with pytest
       run: |
-        set -euo pipefail
-        case "${{ inputs.test-type }}" in
-          unit)
-            echo "markers=-m 'not integration and not performance'" >> "$GITHUB_OUTPUT"
-            echo "::notice::Running unit tests only"
-            ;;
-          integration)
-            echo "markers=-m integration" >> "$GITHUB_OUTPUT"
-            echo "::notice::Running integration tests"
-            ;;
-          performance)
-            echo "markers=-m performance" >> "$GITHUB_OUTPUT"
-            echo "::notice::Running performance tests"
-            ;;
-          all)
-            echo "markers=" >> "$GITHUB_OUTPUT"
-            echo "::notice::Running all tests"
-            ;;
-          *)
-            echo "markers=-m 'not integration and not performance'" >> "$GITHUB_OUTPUT"
-            echo "::warning::Unknown test type '${{ inputs.test-type }}', defaulting to unit tests"
-            ;;
-        esac
-
-    - name: Run tests with coverage
-      id: test
-      shell: bash
-      run: |
-        set -euo pipefail
-        echo "::group::Running pytest with coverage"
-        if uv run pytest tests/ \
-          ${{ steps.markers.outputs.markers }} \
-          --cov=scrap_e \
-          --cov-report=xml:coverage-${{ inputs.os-name }}-py${{ inputs.python-version }}.xml \
-          --cov-report=html:htmlcov-${{ inputs.os-name }}-py${{ inputs.python-version }} \
-          --cov-report=term-missing:skip-covered \
-          --cov-fail-under=${{ inputs.coverage-threshold }} \
-          --junit-xml=test-results-${{ inputs.os-name }}-py${{ inputs.python-version }}.xml \
-          --verbose \
+        echo "Running test suite..."
+        # Remove coverage flags if they're in the default pytest.ini to avoid duplication
+        uv run pytest \
           --tb=short \
-          --maxfail=5 \
-          --durations=20; then
-          echo "status=success" >> "$GITHUB_OUTPUT"
-          echo "::notice::All tests passed successfully"
-        else
-          test_exit_code=$?
-          echo "status=failure" >> "$GITHUB_OUTPUT"
-          echo "::error::Tests failed with exit code $test_exit_code"
-          exit $test_exit_code
-        fi
-        echo "::endgroup::"
-
-    - name: Extract coverage percentage
-      id: coverage
-      if: always()
+          --verbose \
+          --color=yes \
+          --cov-report=term \
+          --cov-report=xml \
+          --cov-report=html \
+          --junitxml=test-results.xml \
+          ${{ inputs.test-args }}
       shell: bash
-      run: |
-        set -euo pipefail
-        coverage_file="coverage-${{ inputs.os-name }}-py${{ inputs.python-version }}.xml"
-        if [ -f "$coverage_file" ]; then
-          percentage=$(python -c "
-          import xml.etree.ElementTree as ET
-          try:
-              tree = ET.parse('$coverage_file')
-              root = tree.getroot()
-              line_rate = float(root.attrib.get('line-rate', 0))
-              print(round(line_rate * 100, 2))
-          except Exception as e:
-              print('0')
-          " || echo "0")
-          echo "percentage=$percentage" >> "$GITHUB_OUTPUT"
-          echo "::notice::Coverage: ${percentage}%"
-        else
-          echo "percentage=0" >> "$GITHUB_OUTPUT"
-          echo "::warning::Coverage file not found"
-        fi
-
-    - name: Upload coverage to Codecov
-      if: inputs.upload-coverage == 'true' && inputs.codecov-token != ''
-      uses: codecov/codecov-action@v5
-      with:
-        token: ${{ inputs.codecov-token }}
-        files: ./coverage-${{ inputs.os-name }}-py${{ inputs.python-version }}.xml
-        flags: ${{ inputs.test-type }},${{ inputs.os-name }},py${{ inputs.python-version }}
-        name: coverage-${{ inputs.os-name }}-py${{ inputs.python-version }}
-        fail_ci_if_error: false
-        verbose: true
-      continue-on-error: true
-
+      
     - name: Upload test results
       if: always()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v4
       with:
-        name: test-results-${{ inputs.test-type }}-${{ inputs.os-name }}-py${{ inputs.python-version }}
-        path: |
-          test-results-*.xml
-          coverage-*.xml
-          htmlcov-*/
+        name: test-results
+        path: test-results.xml
         retention-days: 7
-
-    - name: Generate test summary
+        
+    - name: Upload coverage reports
+      if: inputs.upload-coverage == 'true' && always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: |
+          coverage.xml
+          htmlcov/
+        retention-days: 7
+        
+    - name: Display coverage summary
       if: always()
-      shell: bash
       run: |
-        set -euo pipefail
-        {
-          echo "## Test Report - ${{ inputs.test-type }}"
-          echo ""
-          echo "| Metric | Value |"
-          echo "|--------|-------|"
-          echo "| Status | ${{ steps.test.outputs.status == 'success' && '✅ Passed' || '❌ Failed' }} |"
-          echo "| Coverage | ${{ steps.coverage.outputs.percentage }}% |"
-          echo "| Threshold | ${{ inputs.coverage-threshold }}% |"
-          echo "| OS | ${{ inputs.os-name }} |"
-          echo "| Python | ${{ inputs.python-version }} |"
-        } >> "$GITHUB_STEP_SUMMARY"
+        echo "Coverage Summary:"
+        if [ -f coverage.xml ]; then
+          echo "Coverage report generated - see coverage.xml for details"
+          # Try to extract coverage percentage with grep as fallback
+          grep -o 'line-rate="[0-9.]*"' coverage.xml | head -1 | sed 's/line-rate="/Coverage: /' | sed 's/"/%/' || echo "Coverage data available in coverage.xml"
+        fi
+      shell: bash

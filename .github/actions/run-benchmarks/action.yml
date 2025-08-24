@@ -1,96 +1,102 @@
-name: 'Run Performance Benchmarks'
-description: 'Runs performance benchmarks with pytest-benchmark'
+name: 'Run Benchmarks'
+description: 'Execute performance benchmarks with pytest-benchmark'
 inputs:
-  alert-threshold:
-    description: 'Performance regression alert threshold'
-    required: false
-    default: '150%'
-  comment-threshold:
-    description: 'Performance comment threshold'
-    required: false
-    default: '110%'
-  github-token:
-    description: 'GitHub token for posting comments'
+  benchmark-args:
+    description: 'Additional arguments for pytest benchmark'
     required: false
     default: ''
-
-outputs:
-  benchmark-results:
-    description: 'Path to benchmark results JSON'
-    value: benchmark-results.json
+  compare-with:
+    description: 'Branch or commit to compare benchmarks with'
+    required: false
+    default: ''
+  save-results:
+    description: 'Save benchmark results for comparison'
+    required: false
+    default: 'true'
 
 runs:
   using: 'composite'
   steps:
-    - name: Install benchmark tools
+    - name: Create benchmarks directory
+      run: mkdir -p .benchmarks
       shell: bash
-      run: |
-        set -euo pipefail
-        echo "::group::Installing benchmark dependencies"
-        uv pip install pytest-benchmark pytest-timeout memory-profiler
-        echo "::endgroup::"
-
+      
     - name: Run performance benchmarks
-      shell: bash
       run: |
-        set -euo pipefail
-        echo "::group::Running performance benchmarks"
-        if uv run pytest tests/ \
-          -m performance \
+        echo "Running performance benchmarks..."
+        uv run pytest \
+          tests/ \
+          -m benchmark \
           --benchmark-only \
-          --benchmark-json=benchmark-results.json \
+          --benchmark-json=.benchmarks/benchmark_results.json \
           --benchmark-autosave \
-          --benchmark-save-data \
           --benchmark-max-time=2 \
           --benchmark-min-rounds=5 \
-          --benchmark-warmup=on \
-          --timeout=300; then
-          echo "::notice::Performance benchmarks completed successfully"
-        else
-          exit_code=$?
-          echo "::warning::Performance tests completed with status $exit_code"
-          # Create empty results file if benchmarks failed
-          if [ ! -f benchmark-results.json ]; then
-            echo '{"benchmarks": []}' > benchmark-results.json
-          fi
+          ${{ inputs.benchmark-args }} || true
+      shell: bash
+      
+    - name: Compare with baseline
+      if: inputs.compare-with != ''
+      run: |
+        echo "Comparing with baseline: ${{ inputs.compare-with }}"
+        
+        # Checkout baseline for comparison
+        git fetch origin ${{ inputs.compare-with }}:baseline_branch || true
+        git checkout baseline_branch -- . || true
+        
+        # Run baseline benchmarks
+        uv run pytest \
+          tests/ \
+          -m benchmark \
+          --benchmark-only \
+          --benchmark-json=.benchmarks/baseline_results.json \
+          --benchmark-max-time=2 \
+          --benchmark-min-rounds=5 || true
+        
+        # Compare results
+        if [ -f ".benchmarks/baseline_results.json" ] && [ -f ".benchmarks/benchmark_results.json" ]; then
+          uv run pytest-benchmark compare \
+            .benchmarks/baseline_results.json \
+            .benchmarks/benchmark_results.json \
+            --csv=.benchmarks/comparison.csv || true
         fi
-        echo "::endgroup::"
-
-    - name: Store benchmark results
-      if: github.event_name != 'pull_request' && inputs.github-token != ''
-      uses: benchmark-action/github-action-benchmark@v1
-      with:
-        tool: 'pytest'
-        output-file-path: benchmark-results.json
-        github-token: ${{ inputs.github-token }}
-        auto-push: false
-        comment-on-alert: true
-        alert-threshold: ${{ inputs.alert-threshold }}
-        comment-always: true
-        fail-on-alert: false
-        summary-always: true
-      continue-on-error: true
-
-    - name: Compare with base branch
-      if: github.event_name == 'pull_request' && inputs.github-token != ''
-      uses: benchmark-action/github-action-benchmark@v1
-      with:
-        tool: 'pytest'
-        output-file-path: benchmark-results.json
-        github-token: ${{ inputs.github-token }}
-        comment-on-alert: true
-        alert-threshold: ${{ inputs.comment-threshold }}
-        comment-always: false
-        fail-on-alert: false
-        summary-always: true
-      continue-on-error: true
-
-    - name: Upload benchmark results
+        
+        # Return to original branch
+        git checkout - || true
+      shell: bash
+      
+    - name: Generate benchmark report
       if: always()
-      uses: actions/upload-artifact@v5
+      run: |
+        echo "## Benchmark Results" >> benchmark-summary.md
+        echo "" >> benchmark-summary.md
+        
+        if [ -f ".benchmarks/benchmark_results.json" ]; then
+          echo "Performance benchmarks completed successfully." >> benchmark-summary.md
+          echo "Results saved to: .benchmarks/benchmark_results.json" >> benchmark-summary.md
+          
+          # Extract key metrics from JSON if possible
+          echo "" >> benchmark-summary.md
+          echo "### Benchmark Results" >> benchmark-summary.md
+          echo "See .benchmarks/benchmark_results.json for detailed metrics" >> benchmark-summary.md
+        else
+          echo "No benchmark results generated." >> benchmark-summary.md
+        fi
+        
+        if [ -f ".benchmarks/comparison.csv" ]; then
+          echo "" >> benchmark-summary.md
+          echo "### Comparison with baseline" >> benchmark-summary.md
+          echo "Comparison data saved to: .benchmarks/comparison.csv" >> benchmark-summary.md
+        fi
+      shell: bash
+      
+    - name: Upload benchmark results
+      if: inputs.save-results == 'true' && always()
+      uses: actions/upload-artifact@v4
       with:
         name: benchmark-results
         path: |
-          benchmark-results.json
           .benchmarks/
+          benchmark-summary.md
         retention-days: 30
+        if-no-files-found: warn

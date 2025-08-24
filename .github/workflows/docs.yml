@@ -1,198 +1,96 @@
-name: Docs
+name: Documentation
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
     paths:
       - 'docs/**'
-      - 'mkdocs.yml'
-      - 'README.md'
       - 'src/**/*.py'
-      - '.github/workflows/docs.yml'
+      - 'mkdocs.yml'
+      - 'pyproject.toml'
   pull_request:
-    branches: [main, master]
+    branches: [main]
     paths:
       - 'docs/**'
-      - 'mkdocs.yml'
-      - 'README.md'
       - 'src/**/*.py'
-      - '.github/workflows/docs.yml'
+      - 'mkdocs.yml'
   workflow_dispatch:
-
-concurrency:
-  group: docs-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
-env:
-  PYTHON_VERSION: '3.13'
-  UV_VERSION: '0.5.0'
-  FORCE_COLOR: '1'
 
 permissions:
   contents: read
   pages: write
   id-token: write
 
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
-  build:
+  build-docs:
     name: Build Documentation
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    outputs:
-      docs-status: ${{ steps.build.outputs.status }}
-      site-size: ${{ steps.stats.outputs.size }}
-      page-count: ${{ steps.stats.outputs.pages }}
+    
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v5
         with:
-          fetch-depth: 0
-
-      - name: Setup Python environment
+          fetch-depth: 0  # Full history for git info
+          
+      - name: Setup Python with uv
         uses: ./.github/actions/setup-python
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          uv-version: ${{ env.UV_VERSION }}
-          cache-key-suffix: docs
-
+          python-version: '3.13'
+          
       - name: Install dependencies
         uses: ./.github/actions/install-deps
         with:
+          extras: 'docs'
           install-playwright: false
-          extras: mkdocs mkdocs-material mkdocstrings[python] mkdocs-git-revision-date-localized-plugin mkdocs-minify-plugin mkdocs-redirects mkdocs-awesome-pages-plugin pymdown-extensions
-
+          
       - name: Build documentation
-        id: build
-        shell: bash
         run: |
-          set -euo pipefail
-          echo "::group::Building documentation"
-          if uv run mkdocs build --strict --verbose --site-dir site; then
-            echo "status=success" >> "$GITHUB_OUTPUT"
-            echo "::notice::Documentation built successfully"
-          else
-            echo "status=failure" >> "$GITHUB_OUTPUT"
-            echo "::error::Documentation build failed"
-            exit 1
-          fi
-          echo "::endgroup::"
-
+          echo "Building documentation with MkDocs..."
+          uv run mkdocs build --strict --verbose
+        continue-on-error: false
+        
       - name: Check for broken links
-        id: link-check
-        shell: bash
         run: |
-          set -euo pipefail
-          echo "::group::Checking for broken links"
-          uv pip install linkchecker
-          if uv run linkchecker site/ \
-            --no-robots \
-            --check-extern \
-            --ignore-url=^mailto: \
-            --ignore-url=^tel: \
-            --ignore-url=^https://github.com/.*/edit/ \
-            --ignore-url=^https://github.com/.*/blob/ \
-            --timeout=30 \
-            --check-css \
-            --check-html; then
-            echo "::notice::No broken links found"
-            echo "link-status=success" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::Link checking completed with warnings"
-            echo "link-status=warning" >> "$GITHUB_OUTPUT"
-          fi
-          echo "::endgroup::"
+          echo "Checking for broken links..."
+          uv run mkdocs-linkcheck || true
         continue-on-error: true
-
-      - name: Collect site statistics
-        id: stats
-        if: success()
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "::group::Collecting site statistics"
-          html_count=$(find site -name "*.html" | wc -l)
-          page_count=$(find site -name "*.html" -not -path "*/assets/*" | wc -l)
-          site_size=$(du -sh site | cut -f1)
-
-          echo "html-files=$html_count" >> "$GITHUB_OUTPUT"
-          echo "pages=$page_count" >> "$GITHUB_OUTPUT"
-          echo "size=$site_size" >> "$GITHUB_OUTPUT"
-
-          echo "Site statistics collected:"
-          echo "  - HTML files: $html_count"
-          echo "  - Pages: $page_count"
-          echo "  - Total size: $site_size"
-          echo "::endgroup::"
-
-      - name: Upload documentation artifacts
-        if: always() && steps.build.outputs.status == 'success'
-        uses: actions/upload-artifact@v5
+        
+      - name: Upload documentation
+        uses: actions/upload-artifact@v4
         with:
           name: documentation
           path: site/
           retention-days: 7
-
-      - name: Generate documentation summary
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          {
-            echo "## Documentation Build Report"
-            echo ""
-            if [ "${{ steps.build.outputs.status }}" == "success" ]; then
-              echo "### ✅ Documentation built successfully!"
-            else
-              echo "### ❌ Documentation build failed"
-            fi
-            echo ""
-            echo "### Build Status"
-            echo "| Component | Status |"
-            echo "|-----------|--------|"
-            echo "| MkDocs Build | ${{ steps.build.outputs.status == 'success' && '✅ Success' || '❌ Failed' }} |"
-            echo "| Link Check | ${{ steps.link-check.outputs.link-status == 'success' && '✅ Passed' || steps.link-check.outputs.link-status == 'warning' && '⚠️ Warnings' || '❌ Failed' }} |"
-            echo ""
-            if [ "${{ steps.build.outputs.status }}" == "success" ]; then
-              echo "### Site Statistics"
-              echo "- **HTML Files:** ${{ steps.stats.outputs.html-files }}"
-              echo "- **Documentation Pages:** ${{ steps.stats.outputs.pages }}"
-              echo "- **Total Size:** ${{ steps.stats.outputs.size }}"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  deploy:
-    name: Deploy to GitHub Pages
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    needs: build
+          
+  deploy-docs:
+    name: Deploy Documentation
+    needs: build-docs
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    
     steps:
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Download documentation artifacts
+      - name: Download documentation
         uses: actions/download-artifact@v5
         with:
           name: documentation
           path: ./site
-
-      - name: Upload to GitHub Pages
-        uses: actions/upload-pages-artifact@v3
+          
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+        
+      - name: Upload to Pages
+        uses: actions/upload-pages-artifact@v4
         with:
           path: ./site
-
+          
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
-      - name: Generate deployment summary
-        run: |
-          {
-            echo "## Documentation Deployment"
-            echo ""
-            echo "✅ Documentation deployed to GitHub Pages!"
-            echo ""
-            echo "**URL:** ${{ steps.deployment.outputs.page_url }}"
-          } >> "$GITHUB_STEP_SUMMARY"

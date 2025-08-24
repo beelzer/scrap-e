@@ -75,13 +75,12 @@ jobs:
       - name: Run linting
         uses: ./.github/actions/lint
         with:
-          run-ruff: true
-          run-mypy: ${{ matrix.python-version == '3.13' }}  # Only run mypy on latest Python
+          check-types: ${{ matrix.python-version == '3.13' }}  # Only run mypy on latest Python
+          fail-on-error: true
 
       - name: Run tests
         uses: ./.github/actions/run-tests
         with:
-          test-args: '-v --tb=short'
           upload-coverage: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13' }}
 
   matrix-status:

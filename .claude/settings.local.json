@@ -40,7 +40,8 @@
       "Bash(fi)",
       "Bash(done)",
       "Bash(docker:*)",
-      "Read(/C:\\home\\runner\\work\\scrap-e\\scrap-e\\.github/**)"
+      "Read(/C:\\home\\runner\\work\\scrap-e\\scrap-e\\.github/**)",
+      "Bash(tree:*)"
     ],
     "deny": [],
     "ask": [],

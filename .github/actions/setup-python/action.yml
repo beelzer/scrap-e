@@ -1,59 +1,27 @@
-name: 'Setup Python Environment'
-description: 'Sets up Python with uv package manager and caching'
+name: 'Setup Python with uv'
+description: 'Set up Python environment using uv package manager'
 inputs:
   python-version:
     description: 'Python version to use'
     required: false
     default: '3.13'
-  uv-version:
-    description: 'uv version to install'
-    required: false
-    default: '0.5.0'
-  cache-key-suffix:
-    description: 'Additional cache key suffix'
-    required: false
-    default: ''
-
-outputs:
-  python-version:
-    description: 'The installed Python version'
-    value: ${{ steps.python-info.outputs.version }}
-  python-location:
-    description: 'The installed Python location'
-    value: ${{ steps.python-info.outputs.location }}
-  uv-version:
-    description: 'The installed uv version'
-    value: ${{ steps.uv-info.outputs.version }}
 
 runs:
   using: 'composite'
   steps:
-    - name: Set up Python ${{ inputs.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ inputs.python-version }}
-
-    - name: Install uv package manager
+    - name: Install uv
       uses: astral-sh/setup-uv@v6
       with:
-        version: ${{ inputs.uv-version }}
         enable-cache: true
-        cache-dependency-glob: |
-          **/pyproject.toml
-          **/uv.lock
-        cache-suffix: ${{ inputs.cache-key-suffix }}
-
-    - name: Get Python info
-      id: python-info
+        cache-dependency-glob: 'uv.lock'
+        
+    - name: Set up Python
+      run: uv python install ${{ inputs.python-version }}
       shell: bash
+      
+    - name: Verify Python installation
       run: |
-        set -euo pipefail
-        echo "version=$(python --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
-        echo "location=$(which python)" >> "$GITHUB_OUTPUT"
-
-    - name: Get uv info
-      id: uv-info
+        echo "Python location: $(which python)"
+        echo "Python version: $(python --version)"
+        echo "uv version: $(uv --version)"
       shell: bash
-      run: |
-        set -euo pipefail
-        echo "version=$(uv --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"

@@ -325,7 +325,7 @@ class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
         root = etree.fromstring(response.content)
 
         # Handle sitemap index
-        if root.tag.endswith("sitemapindex"):
+        if isinstance(root.tag, str) and root.tag.endswith("sitemapindex"):
             sitemap_urls = []
             sitemap_locs = root.xpath("//ns:sitemap/ns:loc", namespaces={"ns": root.nsmap[None]})
             if isinstance(sitemap_locs, list):

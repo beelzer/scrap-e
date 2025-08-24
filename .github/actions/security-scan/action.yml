@@ -1,124 +1,108 @@
-name: 'Security Scanning'
-description: 'Runs security scans with Bandit, Safety, and pip-audit'
+name: 'Security Scan'
+description: 'Run security scans on the codebase'
 inputs:
-  bandit-severity:
-    description: 'Bandit severity level'
-    required: false
-    default: 'medium'
-  upload-sarif:
-    description: 'Upload SARIF results to GitHub'
+  run-bandit:
+    description: 'Run bandit static security scan'
     required: false
     default: 'true'
-
-outputs:
-  vulnerabilities-found:
-    description: 'Whether vulnerabilities were found'
-    value: ${{ steps.summary.outputs.vulnerabilities }}
+  run-safety:
+    description: 'Run safety dependency vulnerability check'
+    required: false
+    default: 'true'
+  run-pip-audit:
+    description: 'Run pip-audit for dependency vulnerabilities'
+    required: false
+    default: 'true'
+  upload-results:
+    description: 'Upload scan results as artifacts'
+    required: false
+    default: 'true'
 
 runs:
   using: 'composite'
   steps:
-    - name: Install security tools
-      shell: bash
+    - name: Run bandit security scan
+      if: inputs.run-bandit == 'true'
       run: |
-        set -euo pipefail
-        echo "::group::Installing security scanning tools"
-        uv pip install \
-          bandit[toml] \
-          safety \
-          pip-audit \
-          vulture
-        echo "::endgroup::"
-
-    - name: Run Bandit security scanner
-      id: bandit
+        echo "Running bandit security scan..."
+        # Run bandit and capture results
+        uv run bandit -r src/ -ll -f json -o bandit-report.json || true
+        
+        # Also output to console for visibility
+        echo "Bandit results:"
+        uv run bandit -r src/ -ll -f screen || true
       shell: bash
-      run: |
-        set -euo pipefail
-        echo "::group::Running Bandit security scanner"
-        # Generate SARIF report for GitHub Security tab
-        bandit -r src/ \
-          --severity-level ${{ inputs.bandit-severity }} \
-          --confidence-level medium \
-          --format sarif \
-          --output bandit-results.sarif \
-          --exit-zero
-
-        # Generate text report and capture status
-        if bandit -r src/ \
-          --severity-level ${{ inputs.bandit-severity }} \
-          --confidence-level medium \
-          --format txt; then
-          echo "::notice::Bandit found no security issues"
-        else
-          echo "bandit_status=$?" >> "$GITHUB_ENV"
-          echo "::warning::Bandit found potential security issues"
-        fi
-        echo "::endgroup::"
       continue-on-error: true
-
-    - name: Run Safety vulnerability check
-      id: safety
-      shell: bash
+      
+    - name: Run safety vulnerability check
+      if: inputs.run-safety == 'true'
       run: |
-        set -euo pipefail
-        echo "::group::Running Safety vulnerability check"
+        echo "Checking for known vulnerabilities with safety..."
+        
+        # Export requirements for safety check
         uv pip freeze > requirements-frozen.txt
-        if safety check --file requirements-frozen.txt --output text; then
-          echo "::notice::Safety found no known vulnerabilities"
-        else
-          echo "safety_status=$?" >> "$GITHUB_ENV"
-          echo "::warning::Safety found known vulnerabilities in dependencies"
-        fi
+        
+        # Run safety check
+        uv run safety check --file requirements-frozen.txt --json --output safety-report.json || true
+        
+        # Also output to console
+        echo "Safety results:"
+        uv run safety check --file requirements-frozen.txt || true
+        
+        # Clean up
         rm -f requirements-frozen.txt
-        echo "::endgroup::"
+      shell: bash
       continue-on-error: true
-
+      
     - name: Run pip-audit
-      id: pip-audit
-      shell: bash
+      if: inputs.run-pip-audit == 'true'
       run: |
-        set -euo pipefail
-        echo "::group::Running pip-audit vulnerability check"
-        if pip-audit --desc --format markdown; then
-          echo "::notice::pip-audit found no vulnerabilities"
-        else
-          echo "pip_audit_status=$?" >> "$GITHUB_ENV"
-          echo "::warning::pip-audit found vulnerabilities"
-        fi
-        echo "::endgroup::"
+        echo "Running pip-audit for dependency vulnerabilities..."
+        
+        # Run pip-audit
+        uv run pip-audit --format json --output pip-audit-report.json || true
+        
+        # Also output to console
+        echo "pip-audit results:"
+        uv run pip-audit || true
+      shell: bash
       continue-on-error: true
-
-    - name: Upload SARIF results
-      if: inputs.upload-sarif == 'true' && always()
-      uses: github/codeql-action/upload-sarif@v3
-      with:
-        sarif_file: bandit-results.sarif
-        category: bandit
-      continue-on-error: true
-
+      
     - name: Generate security summary
-      id: summary
       if: always()
-      shell: bash
       run: |
-        set -euo pipefail
-        vulnerabilities="false"
-        if [ -n "${bandit_status:-}" ] || [ -n "${safety_status:-}" ] || [ -n "${pip_audit_status:-}" ]; then
-          vulnerabilities="true"
+        echo "## Security Scan Summary" >> security-summary.md
+        echo "" >> security-summary.md
+        
+        # Check if reports exist and summarize
+        if [ -f "bandit-report.json" ]; then
+          echo "### Bandit Static Analysis" >> security-summary.md
+          echo "Report generated: bandit-report.json" >> security-summary.md
+          echo "" >> security-summary.md
         fi
-        echo "vulnerabilities=$vulnerabilities" >> "$GITHUB_OUTPUT"
-
-        {
-          echo "## Security Scan Report"
-          echo ""
-          echo "| Scanner | Status |"
-          echo "|---------|--------|"
-          echo "| Bandit | ${bandit_status:+⚠️ Issues Found}${bandit_status:-✅ Passed} |"
-          echo "| Safety | ${safety_status:+⚠️ Vulnerabilities Found}${safety_status:-✅ Passed} |"
-          echo "| pip-audit | ${pip_audit_status:+⚠️ Issues Found}${pip_audit_status:-✅ Passed} |"
-          echo ""
-          echo "### Scan Configuration"
-          echo "- **Bandit Severity Level:** ${{ inputs.bandit-severity }}"
-          echo "- **SARIF Upload:** ${{ inputs.upload-sarif }}"
-        } >> "$GITHUB_STEP_SUMMARY"
+        
+        if [ -f "safety-report.json" ]; then
+          echo "### Safety Vulnerability Check" >> security-summary.md
+          echo "Report generated: safety-report.json" >> security-summary.md
+          echo "" >> security-summary.md
+        fi
+        
+        if [ -f "pip-audit-report.json" ]; then
+          echo "### Pip Audit" >> security-summary.md
+          echo "Report generated: pip-audit-report.json" >> security-summary.md
+          echo "" >> security-summary.md
+        fi
+        
+        echo "Security scans completed. Check individual reports for details." >> security-summary.md
+      shell: bash
+      
+    - name: Upload security reports
+      if: inputs.upload-results == 'true' && always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-scan-results
+        path: |
+          *-report.json
+          security-summary.md
+        retention-days: 30
+        if-no-files-found: warn
