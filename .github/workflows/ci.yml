@@ -340,6 +340,9 @@ jobs:
       - name: 📦 Install build dependencies
         run: |
           echo "::group::Installing Build Tools"
+          # Create virtual environment first by syncing the project
+          uv sync
+          # Now install build tools in the virtual environment
           uv pip install build twine
           echo "::endgroup::"
         shell: bash
