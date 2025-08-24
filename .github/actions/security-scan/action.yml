@@ -27,75 +27,75 @@ runs:
         echo "Running bandit security scan..."
         # Run bandit and capture results
         uv run bandit -r src/ -ll -f json -o bandit-report.json || true
-        
+
         # Also output to console for visibility
         echo "Bandit results:"
         uv run bandit -r src/ -ll -f screen || true
       shell: bash
       continue-on-error: true
-      
+
     - name: Run safety vulnerability check
       if: inputs.run-safety == 'true'
       run: |
         echo "Checking for known vulnerabilities with safety..."
-        
+
         # Export requirements for safety check
         uv pip freeze > requirements-frozen.txt
-        
+
         # Run safety check
         uv run safety check --file requirements-frozen.txt --json --output safety-report.json || true
-        
+
         # Also output to console
         echo "Safety results:"
         uv run safety check --file requirements-frozen.txt || true
-        
+
         # Clean up
         rm -f requirements-frozen.txt
       shell: bash
       continue-on-error: true
-      
+
     - name: Run pip-audit
       if: inputs.run-pip-audit == 'true'
       run: |
         echo "Running pip-audit for dependency vulnerabilities..."
-        
+
         # Run pip-audit
         uv run pip-audit --format json --output pip-audit-report.json || true
-        
+
         # Also output to console
         echo "pip-audit results:"
         uv run pip-audit || true
       shell: bash
       continue-on-error: true
-      
+
     - name: Generate security summary
       if: always()
       run: |
         echo "## Security Scan Summary" >> security-summary.md
         echo "" >> security-summary.md
-        
+
         # Check if reports exist and summarize
         if [ -f "bandit-report.json" ]; then
           echo "### Bandit Static Analysis" >> security-summary.md
           echo "Report generated: bandit-report.json" >> security-summary.md
           echo "" >> security-summary.md
         fi
-        
+
         if [ -f "safety-report.json" ]; then
           echo "### Safety Vulnerability Check" >> security-summary.md
           echo "Report generated: safety-report.json" >> security-summary.md
           echo "" >> security-summary.md
         fi
-        
+
         if [ -f "pip-audit-report.json" ]; then
           echo "### Pip Audit" >> security-summary.md
           echo "Report generated: pip-audit-report.json" >> security-summary.md
           echo "" >> security-summary.md
         fi
-        
+
         echo "Security scans completed. Check individual reports for details." >> security-summary.md
       shell: bash
-      
+
     - name: Upload security reports
       if: inputs.upload-results == 'true' && always()
       uses: actions/upload-artifact@v4

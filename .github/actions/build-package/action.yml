@@ -26,11 +26,11 @@ runs:
         echo "Cleaning previous build artifacts..."
         rm -rf dist/ build/ *.egg-info src/*.egg-info
       shell: bash
-      
+
     - name: Build distributions
       run: |
         echo "Building package distributions..."
-        
+
         BUILD_ARGS=""
         if [[ "${{ inputs.build-wheel }}" == "true" ]]; then
           BUILD_ARGS="$BUILD_ARGS --wheel"
@@ -38,57 +38,57 @@ runs:
         if [[ "${{ inputs.build-sdist }}" == "true" ]]; then
           BUILD_ARGS="$BUILD_ARGS --sdist"
         fi
-        
+
         # Build the package
         uv build $BUILD_ARGS
-        
+
         # List built packages
         echo ""
         echo "Built packages:"
         ls -la dist/
       shell: bash
-      
+
     - name: Check package with twine
       if: inputs.check-package == 'true'
       run: |
         echo "Checking package integrity..."
         uv run twine check dist/*
-        
+
         echo ""
         echo "Package metadata:"
         uv run python -m zipfile -l dist/*.whl | head -20 || true
       shell: bash
-      
+
     - name: Verify package installation
       run: |
         echo "Testing package installation..."
-        
+
         # Create a temporary virtual environment
         TEMP_VENV=$(mktemp -d)
         uv venv $TEMP_VENV
-        
+
         # Install the built wheel
         if [ -f dist/*.whl ]; then
           $TEMP_VENV/bin/pip install dist/*.whl
-          
+
           # Verify the package can be imported
           $TEMP_VENV/bin/python -c "import scrap_e; print(f'Package imported successfully: scrap_e')"
-          
+
           # Check CLI is available
           $TEMP_VENV/bin/scrap-e --version || $TEMP_VENV/bin/scrap-e --help || true
         fi
-        
+
         # Clean up
         rm -rf $TEMP_VENV
       shell: bash
       continue-on-error: true
-      
+
     - name: Generate package info
       if: always()
       run: |
         echo "## Package Build Summary" >> package-summary.md
         echo "" >> package-summary.md
-        
+
         if [ -d "dist" ]; then
           echo "### Built Packages" >> package-summary.md
           echo "" >> package-summary.md
@@ -96,7 +96,7 @@ runs:
           ls -lah dist/ >> package-summary.md
           echo '```' >> package-summary.md
           echo "" >> package-summary.md
-          
+
           # Get package size
           for file in dist/*; do
             if [ -f "$file" ]; then
@@ -107,17 +107,17 @@ runs:
         else
           echo "No packages were built." >> package-summary.md
         fi
-        
+
         echo "" >> package-summary.md
         echo "### Package Details" >> package-summary.md
         echo "" >> package-summary.md
-        
+
         # Extract version from pyproject.toml
         VERSION=$(grep "^version" pyproject.toml | cut -d'"' -f2)
         echo "- **Version:** $VERSION" >> package-summary.md
         echo "- **Python Requirement:** >=3.13" >> package-summary.md
       shell: bash
-      
+
     - name: Upload built packages
       if: inputs.upload-artifacts == 'true' && always()
       uses: actions/upload-artifact@v4
