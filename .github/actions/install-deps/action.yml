@@ -1,67 +1,50 @@
 name: 'Install Dependencies'
-description: 'Installs project dependencies including Playwright browsers'
+description: 'Install project dependencies using uv'
 inputs:
-  install-playwright:
-    description: 'Install Playwright browsers'
-    required: false
-    default: 'true'
-  playwright-browsers:
-    description: 'Playwright browsers to install'
-    required: false
-    default: 'chromium firefox webkit'
   extras:
-    description: 'Additional pip packages to install'
+    description: 'Comma-separated list of extras to install (e.g., "dev,docs")'
     required: false
     default: ''
+  install-playwright:
+    description: 'Whether to install Playwright browsers'
+    required: false
+    default: 'true'
 
 runs:
   using: 'composite'
   steps:
-    - name: Cache Playwright browsers
-      if: inputs.install-playwright == 'true'
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/ms-playwright
-        key: playwright-${{ runner.os }}-${{ hashFiles('**/pyproject.toml') }}
-        restore-keys: |
-          playwright-${{ runner.os }}-
-
     - name: Install project dependencies
-      shell: bash
       run: |
-        set -euo pipefail
-        echo "::group::Installing dependencies"
-        uv sync --all-extras
-        echo "::endgroup::"
-
-    - name: Install additional packages
-      if: inputs.extras != ''
+        if [ -z "${{ inputs.extras }}" ]; then
+          echo "Installing base dependencies..."
+          uv sync
+        else
+          echo "Installing with extras: ${{ inputs.extras }}"
+          # Special handling for 'dev' which means all dev dependencies
+          if [ "${{ inputs.extras }}" = "dev" ]; then
+            echo "Installing all dev dependencies..."
+            uv sync --all-extras
+          else
+            # Convert comma-separated extras to multiple --extra flags
+            EXTRAS_FLAGS=""
+            IFS=',' read -ra EXTRAS <<< "${{ inputs.extras }}"
+            for extra in "${EXTRAS[@]}"; do
+              EXTRAS_FLAGS="$EXTRAS_FLAGS --extra $extra"
+            done
+            uv sync $EXTRAS_FLAGS
+          fi
+        fi
       shell: bash
-      run: |
-        set -euo pipefail
-        echo "::group::Installing additional packages"
-        uv pip install ${{ inputs.extras }}
-        echo "::endgroup::"
-
+      
     - name: Install Playwright browsers
       if: inputs.install-playwright == 'true'
-      shell: bash
       run: |
-        set -euo pipefail
-        echo "::group::Installing Playwright browsers"
-        uv run playwright install ${{ inputs.playwright-browsers }}
-        uv run playwright install-deps
-        echo "::endgroup::"
-
-    - name: Run doctor command for diagnostics
+        echo "Installing Playwright browsers..."
+        uv run playwright install --with-deps chromium firefox
       shell: bash
+      
+    - name: Show installed packages
       run: |
-        set -euo pipefail
-        echo "::group::Running diagnostics"
-        if command -v scrap-e &> /dev/null || uv run python -c "import scrap_e" 2>/dev/null; then
-          uv run scrap-e doctor || echo "::warning::Doctor command failed with exit code $?"
-        else
-          echo "::notice::scrap-e package not yet installed, skipping doctor check"
-        fi
-        echo "::endgroup::"
-      continue-on-error: true
+        echo "Installed packages:"
+        uv pip list
+      shell: bash
