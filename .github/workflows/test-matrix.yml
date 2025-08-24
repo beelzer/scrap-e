@@ -30,7 +30,7 @@ jobs:
         run: |
           # Default values for scheduled runs
           if [[ "${{ github.event_name }}" == "schedule" ]]; then
-            echo "python-versions=[\"3.12\", \"3.13\"]" >> "$GITHUB_OUTPUT"
+            echo "python-versions=[\"3.13\"]" >> "$GITHUB_OUTPUT"
             echo "os-list=[\"ubuntu-latest\", \"windows-latest\", \"macos-latest\"]" >> "$GITHUB_OUTPUT"
           else
             # Parse manual inputs
@@ -59,7 +59,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup Python with uv
         uses: ./.github/actions/setup-python

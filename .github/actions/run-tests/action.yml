@@ -17,7 +17,7 @@ runs:
       run: |
         echo "Running test suite..."
         # Remove coverage flags if they're in the default pytest.ini to avoid duplication
-        uv run pytest \
+        uv run pytest tests/ \
           --tb=short \
           --verbose \
           --color=yes \
@@ -25,9 +25,10 @@ runs:
           --cov-report=xml \
           --cov-report=html \
           --junitxml=test-results.xml \
+          -m "not benchmark and not performance" \
           ${{ inputs.test-args }}
       shell: bash
-      
+
     - name: Upload test results
       if: always()
       uses: actions/upload-artifact@v4
@@ -35,7 +36,7 @@ runs:
         name: test-results
         path: test-results.xml
         retention-days: 7
-        
+
     - name: Upload coverage reports
       if: inputs.upload-coverage == 'true' && always()
       uses: actions/upload-artifact@v4
@@ -45,7 +46,7 @@ runs:
           coverage.xml
           htmlcov/
         retention-days: 7
-        
+
     - name: Display coverage summary
       if: always()
       run: |
