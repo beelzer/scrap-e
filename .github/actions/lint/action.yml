@@ -19,14 +19,14 @@ runs:
         echo "Running ruff linter..."
         uv run ruff check src/ tests/ --output-format=github
       shell: bash
-      
+
     - name: Run ruff formatter check
       if: inputs.run-ruff == 'true'
       run: |
         echo "Checking code formatting with ruff..."
         uv run ruff format src/ tests/ --check --diff
       shell: bash
-      
+
     - name: Run mypy type checker
       if: inputs.run-mypy == 'true'
       run: |
