@@ -89,6 +89,7 @@ repos:
 exclude: |
   (?x)^(
     .*\.egg-info/.*|
+    \.claude/.*|
     \.git/.*|
     \.mypy_cache/.*|
     \.pytest_cache/.*|

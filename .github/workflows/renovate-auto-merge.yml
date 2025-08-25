@@ -36,32 +36,38 @@ jobs:
 
             OLD_MAJOR=$(echo "$OLD_VERSION" | cut -d. -f1)
             OLD_MINOR=$(echo "$OLD_VERSION" | cut -d. -f2)
-            OLD_PATCH=$(echo "$OLD_VERSION" | cut -d. -f3)
 
             NEW_MAJOR=$(echo "$NEW_VERSION" | cut -d. -f1)
             NEW_MINOR=$(echo "$NEW_VERSION" | cut -d. -f2)
-            NEW_PATCH=$(echo "$NEW_VERSION" | cut -d. -f3)
 
             if [[ "$OLD_MAJOR" == "$NEW_MAJOR" && "$OLD_MINOR" == "$NEW_MINOR" ]]; then
-              echo "is-patch=true" >> "$GITHUB_OUTPUT"
-              echo "is-minor=false" >> "$GITHUB_OUTPUT"
-              echo "should-automerge=true" >> "$GITHUB_OUTPUT"
+              {
+                echo "is-patch=true"
+                echo "is-minor=false"
+                echo "should-automerge=true"
+              } >> "$GITHUB_OUTPUT"
               echo "✅ Patch version update detected"
             elif [[ "$OLD_MAJOR" == "$NEW_MAJOR" ]]; then
-              echo "is-patch=false" >> "$GITHUB_OUTPUT"
-              echo "is-minor=true" >> "$GITHUB_OUTPUT"
-              echo "should-automerge=true" >> "$GITHUB_OUTPUT"
+              {
+                echo "is-patch=false"
+                echo "is-minor=true"
+                echo "should-automerge=true"
+              } >> "$GITHUB_OUTPUT"
               echo "✅ Minor version update detected"
             else
-              echo "is-patch=false" >> "$GITHUB_OUTPUT"
-              echo "is-minor=false" >> "$GITHUB_OUTPUT"
-              echo "should-automerge=false" >> "$GITHUB_OUTPUT"
+              {
+                echo "is-patch=false"
+                echo "is-minor=false"
+                echo "should-automerge=false"
+              } >> "$GITHUB_OUTPUT"
               echo "⚠️ Major version update detected - manual review required"
             fi
           else
-            echo "is-patch=false" >> "$GITHUB_OUTPUT"
-            echo "is-minor=false" >> "$GITHUB_OUTPUT"
-            echo "should-automerge=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "is-patch=false"
+              echo "is-minor=false"
+              echo "should-automerge=false"
+            } >> "$GITHUB_OUTPUT"
             echo "⚠️ Could not determine version bump type"
           fi
 
