@@ -3,6 +3,7 @@
 import asyncio
 import csv
 import json
+import os
 import sys
 from io import StringIO
 from pathlib import Path
@@ -27,8 +28,25 @@ except ImportError:
     sync_playwright = None  # type: ignore[assignment]
     PLAYWRIGHT_AVAILABLE = False
 
-console = Console()
 logger = structlog.get_logger()
+
+
+def get_console() -> Console:
+    """Get console instance with proper color detection."""
+    # Check NO_COLOR environment variable
+    no_color = bool(os.environ.get("NO_COLOR"))
+    force_color = os.environ.get("FORCE_COLOR", "").lower() in ("1", "true", "yes")
+
+    # If NO_COLOR is set, disable all colors regardless of FORCE_COLOR
+    if no_color:
+        return Console(no_color=True, force_terminal=False, force_interactive=False)
+    if force_color:
+        return Console(force_terminal=True, force_interactive=False)
+    return Console()
+
+
+# Create a default console for backward compatibility
+console = get_console()
 
 
 @click.group()
@@ -175,6 +193,7 @@ def scrape(
         )
 
     # Run scraping
+    console = get_console()  # Get fresh console instance
     console.print(f"Scraping {url}...")
 
     result = asyncio.run(
@@ -292,6 +311,7 @@ def batch(
     config = ctx.obj["config"]
     config.concurrent_requests = concurrent
 
+    console = get_console()  # Get fresh console instance
     console.print(f"Scraping {len(urls)} URLs with {concurrent} concurrent requests...")
 
     # Run batch scraping
@@ -351,6 +371,7 @@ def sitemap(
     """Extract and optionally scrape URLs from a sitemap."""
     config = ctx.obj["config"]
 
+    console = get_console()  # Get fresh console instance
     console.print(f"Extracting URLs from sitemap: {sitemap_url}")
 
     # Extract URLs from sitemap
@@ -401,6 +422,7 @@ async def _extract_sitemap(sitemap_url: str, config: ScraperConfig) -> list[str]
 @click.pass_context
 def serve(ctx: click.Context, host: str, port: int) -> None:  # noqa: ARG001
     """Start the Scrap-E API server."""
+    console = get_console()  # Get fresh console instance
     console.print(f"Starting API server on {host}:{port}")
     console.print("[yellow]API server not yet implemented[/yellow]")
     # TODO: Implement FastAPI server
@@ -409,6 +431,7 @@ def serve(ctx: click.Context, host: str, port: int) -> None:  # noqa: ARG001
 @cli.command()
 def doctor() -> None:
     """Check system dependencies and configuration."""
+    console = get_console()  # Get fresh console instance
     console.print("[bold]Scrap-E System Check[/bold]\n")
 
     checks = []

@@ -224,9 +224,16 @@ def configure_test_environment():
 
     # Set up any test-specific environment variables
     os.environ["TESTING"] = "1"
+    # Disable colors in CLI output for consistent test results
+    os.environ["NO_COLOR"] = "1"
+    os.environ["FORCE_COLOR"] = "0"
 
     yield
 
     # Cleanup
     if "TESTING" in os.environ:
         del os.environ["TESTING"]
+    if "NO_COLOR" in os.environ:
+        del os.environ["NO_COLOR"]
+    if "FORCE_COLOR" in os.environ:
+        del os.environ["FORCE_COLOR"]

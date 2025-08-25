@@ -32,8 +32,8 @@ env:
   # Default Python version for non-matrix jobs
   DEFAULT_PYTHON: '3.13'
   UV_CACHE_DIR: ~/.cache/uv
-  # Enable colored output
-  FORCE_COLOR: 1
+  # Disable colored output for tests to ensure consistency
+  NO_COLOR: 1
   # Test timeout in minutes
   TEST_TIMEOUT: 20
 
