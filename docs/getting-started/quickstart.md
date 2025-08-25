@@ -10,7 +10,7 @@ The simplest way to scrape a website is using the `HttpScraper`:
 
 ```python
 import asyncio
-from scrap_e.scrapers.web import HttpScraper
+from scrap_e.scrapers.web.http_scraper import HttpScraper
 
 async def scrape_website():
     # Create scraper instance
@@ -22,10 +22,10 @@ async def scrape_website():
     if result.success:
         print(f"Status: {result.data.status_code}")
         print(f"Content length: {len(result.data.content)}")
-        print(f"Title: {result.data.metadata.get('title')}")
+        print(f"Title: {result.data.extracted_data.get('title') if result.data.extracted_data else 'No title'}")
 
     # Clean up resources
-    await scraper.cleanup()
+    await scraper._cleanup()
 
 # Run the scraper
 asyncio.run(scrape_website())
@@ -37,35 +37,33 @@ Use extraction rules to target specific elements:
 
 ```python
 from scrap_e.core.models import ExtractionRule
+from scrap_e.scrapers.web.http_scraper import HttpScraper
 
 async def extract_data():
     scraper = HttpScraper()
 
     # Add extraction rules
-    scraper.add_extraction_rule(
+    scraper.extraction_rules = [
         ExtractionRule(
             name="headline",
             selector="h1.main-title",
             required=True
-        )
-    )
-
-    scraper.add_extraction_rule(
+        ),
         ExtractionRule(
             name="paragraphs",
             selector="p.content",
             multiple=True  # Extract all matching elements
         )
-    )
+    ]
 
     result = await scraper.scrape("https://example.com")
 
-    if result.success:
+    if result.success and result.data.extracted_data:
         data = result.data.extracted_data
         print(f"Headline: {data.get('headline')}")
         print(f"Found {len(data.get('paragraphs', []))} paragraphs")
 
-    await scraper.cleanup()
+    await scraper._cleanup()
 
 asyncio.run(extract_data())
 ```
@@ -75,7 +73,7 @@ asyncio.run(extract_data())
 For JavaScript-heavy sites, use the `BrowserScraper`:
 
 ```python
-from scrap_e.scrapers.web import BrowserScraper
+from scrap_e.scrapers.web.browser_scraper import BrowserScraper
 
 async def scrape_with_browser():
     scraper = BrowserScraper()
@@ -83,16 +81,16 @@ async def scrape_with_browser():
     # Wait for specific element to load
     result = await scraper.scrape(
         "https://example.com",
-        wait_for="div.dynamic-content",
-        screenshot=True  # Take a screenshot
+        wait_for_selector="div.dynamic-content",
+        capture_screenshot=True  # Take a screenshot
     )
 
     if result.success:
-        print(f"Page title: {result.data.metadata.get('title')}")
+        print(f"Page title: {result.data.title}")
         if result.data.screenshot:
-            print("Screenshot captured!")
+            print(f"Screenshot captured: {len(result.data.screenshot)} bytes")
 
-    await scraper.cleanup()
+    await scraper._cleanup()
 
 asyncio.run(scrape_with_browser())
 ```
@@ -119,7 +117,7 @@ async def scrape_multiple():
         else:
             print(f"Failed: {result.error}")
 
-    await scraper.cleanup()
+    await scraper._cleanup()
 
 asyncio.run(scrape_multiple())
 ```
@@ -130,6 +128,7 @@ Proper error handling ensures robust scraping:
 
 ```python
 from scrap_e.core.exceptions import ScraperError, ConnectionError
+from scrap_e.scrapers.web.http_scraper import HttpScraper
 
 async def safe_scraping():
     scraper = HttpScraper()
@@ -147,11 +146,11 @@ async def safe_scraping():
     except ScraperError as e:
         print(f"Scraper error: {e}")
     finally:
-        await scraper.cleanup()
+        await scraper._cleanup()
 
 def process_data(data):
     # Process your scraped data here
-    pass
+    print(f"Processing data from {data.url}")
 
 asyncio.run(safe_scraping())
 ```

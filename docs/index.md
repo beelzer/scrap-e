@@ -4,64 +4,137 @@ Welcome to **Scrap-E**, a universal data scraper for Web, APIs, databases, and f
 
 ## Overview
 
-Scrap-E is a powerful and flexible Python library designed to simplify data extraction from various sources. Whether you need to scrape websites, consume APIs, query databases, or process files, Scrap-E provides a unified interface and robust toolset to get the job done efficiently.
+Scrap-E is a powerful and flexible Python library designed to simplify data extraction from various sources. Built with modern Python (3.13+) and async/await patterns, Scrap-E provides a unified interface for scraping websites, consuming APIs, querying databases, and processing files.
 
 ## Key Features
 
-- **🌐 Web Scraping**: Support for both HTTP-based scraping and browser automation
-- **🔌 API Integration**: Built-in support for REST, GraphQL, and WebSocket APIs
-- **🗄️ Database Connectivity**: Connect and extract data from SQL and NoSQL databases
-- **📁 File Processing**: Parse and extract data from various file formats (CSV, JSON, XML, PDF, etc.)
-- **⚡ Async Support**: Built on async/await for high-performance concurrent operations
-- **🔧 Extensible**: Easy to extend with custom scrapers and processors
-- **🛡️ Robust Error Handling**: Comprehensive error handling and retry mechanisms
-- **📊 Data Validation**: Built-in data validation using Pydantic models
+- **🌐 Web Scraping**: HTTP-based scraping with `HttpScraper` and JavaScript-heavy sites with `BrowserScraper` (Playwright)
+- **🔌 API Integration**: REST, GraphQL, and WebSocket API support with built-in authentication
+- **🗄️ Database Connectivity**: SQL (PostgreSQL, MySQL, SQLite) and NoSQL (MongoDB, Redis) database extraction
+- **📁 File Processing**: CSV, JSON, XML, PDF, Excel, and other file format parsing
+- **⚡ High Performance**: Async/await architecture with concurrent request handling and connection pooling
+- **🔧 Extensible Architecture**: Modular design with pluggable scrapers and configurable pipelines
+- **🛡️ Production Ready**: Comprehensive error handling, retry mechanisms, rate limiting, and caching
+- **📊 Data Validation**: Pydantic models for type safety and data validation
+- **🖥️ CLI Interface**: Command-line tool for quick scraping and batch operations
+- **📈 Monitoring**: Built-in statistics, logging, and performance metrics
 
-## Quick Example
+## Architecture
+
+Scrap-E is built around several core concepts:
+
+- **Base Scrapers**: Abstract foundation supporting different data sources
+- **Specialized Scrapers**: HTTP, Browser, API, Database, and File scrapers
+- **Configuration System**: Flexible settings with environment variable support
+- **Result Models**: Structured data containers with metadata and error handling
+- **Extraction Rules**: Declarative data extraction using selectors, XPath, and JSONPath
+
+## Quick Examples
+
+### HTTP Web Scraping
 
 ```python
-from scrap_e.scrapers.web import HttpScraper
+import asyncio
+from scrap_e.scrapers.web.http_scraper import HttpScraper
 from scrap_e.core.models import ExtractionRule
 
-# Create a scraper instance
-scraper = HttpScraper()
+async def scrape_web():
+    scraper = HttpScraper()
 
-# Define extraction rules
-scraper.add_extraction_rule(
-    ExtractionRule(
-        name="title",
-        selector="h1",
-        required=True
+    # Add extraction rules
+    scraper.extraction_rules = [
+        ExtractionRule(
+            name="title",
+            selector="h1",
+            required=True
+        ),
+        ExtractionRule(
+            name="articles",
+            selector="article",
+            multiple=True
+        )
+    ]
+
+    # Scrape with session management
+    async with scraper.session() as s:
+        result = await s.scrape("https://example.com")
+        if result.success and result.data.extracted_data:
+            print(f"Title: {result.data.extracted_data['title']}")
+            print(f"Found {len(result.data.extracted_data['articles'])} articles")
+
+asyncio.run(scrape_web())
+```
+
+### Browser Automation
+
+```python
+from scrap_e.scrapers.web.browser_scraper import BrowserScraper
+
+async def scrape_spa():
+    scraper = BrowserScraper()
+
+    result = await scraper.scrape(
+        "https://spa-example.com",
+        wait_for_selector=".dynamic-content",
+        capture_screenshot=True
     )
-)
 
-# Scrape data
-async def main():
-    result = await scraper.scrape("https://example.com")
     if result.success:
-        print(result.data.extracted_data)
+        print(f"Page title: {result.data.title}")
+        if result.data.screenshot:
+            with open("screenshot.png", "wb") as f:
+                f.write(result.data.screenshot)
 
-# Run the scraper
-import asyncio
-asyncio.run(main())
+    await scraper._cleanup()
+
+asyncio.run(scrape_spa())
+```
+
+### CLI Usage
+
+```bash
+# Simple scraping
+scrap-e scrape https://example.com --selector "h1" --selector ".content"
+
+# Batch scraping
+scrap-e batch https://site1.com https://site2.com --concurrent 10
+
+# Sitemap extraction and scraping
+scrap-e sitemap https://example.com/sitemap.xml --scrape
+
+# System check
+scrap-e doctor
 ```
 
 ## Installation
 
-Install Scrap-E using pip:
+### From PyPI (when released)
 
 ```bash
 pip install scrap-e
 ```
 
-Or with optional dependencies for specific features:
+### From Source (Development)
 
 ```bash
-# For browser automation
-pip install scrap-e[browser]
+git clone https://github.com/beelzer/scrap-e.git
+cd scrap-e
+uv sync --dev
+```
 
-# For development
-pip install scrap-e[dev]
+### Post-Installation Setup
+
+After installation, run these commands to complete setup:
+
+```bash
+# Install pre-commit hooks (development)
+pre-commit install
+
+# Install Playwright browsers (for browser scraping)
+playwright install
+
+# Verify installation
+scrap-e doctor
 ```
 
 ## Documentation Structure

@@ -92,14 +92,22 @@ nav:
       - API Scraping: user-guide/api-scraping.md
       - Database Scraping: user-guide/database-scraping.md
       - File Processing: user-guide/file-processing.md
+      - CLI Usage: user-guide/cli-usage.md
+      - Error Handling: user-guide/error-handling.md
   - API Reference:
       - Core:
           - Base Scraper: api/core/base-scraper.md
           - Configuration: api/core/configuration.md
           - Models: api/core/models.md
+          - Exceptions: api/core/exceptions.md
       - Scrapers:
           - HTTP Scraper: api/scrapers/http-scraper.md
           - Browser Scraper: api/scrapers/browser-scraper.md
+          - API Scrapers: api/scrapers/api-scrapers.md
+      - Parsers:
+          - HTML Parser: api/parsers/html-parser.md
+      - CLI:
+          - Commands: api/cli/commands.md
   - Contributing: contributing.md
 
 extra:
