@@ -1,11 +1,11 @@
 site_name: Scrap-E Documentation
 site_description: Universal data scraper for Web, APIs, databases, and files
 site_author: Scrap-E Team
-site_url: https://github.com/beelzer/scrap-e
+site_url: https://beelzer.github.io/scrap-e/
 
 repo_name: beelzer/scrap-e
 repo_url: https://github.com/beelzer/scrap-e
-edit_uri: edit/master/docs/
+edit_uri: edit/main/docs/
 
 theme:
   name: material
@@ -109,6 +109,8 @@ nav:
       - CLI:
           - Commands: api/cli/commands.md
   - Contributing: contributing.md
+  - Development:
+      - Pre-commit Hooks: pre-commit.md
 
 extra:
   social:
