@@ -26,6 +26,7 @@ class WebPageData(BaseModel):
     metadata: dict[str, Any] | None = None
     links: list[dict[str, str]] | None = None
     images: list[dict[str, str]] | None = None
+    tables: list[Any] | None = None
 
 
 class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
@@ -193,14 +194,16 @@ class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
             parser = HtmlParser(content)
             page_data.images = parser.extract_images(str(response.url))
 
+        # Extract tables if content is available
+        if content:
+            parser = HtmlParser(content)
+            page_data.tables = parser.extract_tables()
+
         return page_data
 
     async def _extract_data(self, content: str, rules: list[ExtractionRule]) -> dict[str, Any]:
         """Extract data using extraction rules."""
-        if not content:
-            return {}
-
-        parser = HtmlParser(content, self.config.parser)
+        parser = HtmlParser(content or "", self.config.parser)
         extracted = {}
 
         for rule in rules:

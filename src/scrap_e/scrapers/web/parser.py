@@ -176,13 +176,36 @@ class HtmlParser:
         # Type conversions
         if transform == "int":
             try:
-                return int(re.sub(r"[^\d-]", "", str(value)))
+                # First try direct conversion
+                return int(str(value))
             except ValueError:
+                # Check if it contains multiple decimal points (invalid)
+                if str(value).count(".") > 1:
+                    return 0
+                try:
+                    # Try removing non-numeric characters but preserve structure
+                    cleaned = re.sub(r"[^\d-]", "", str(value))
+                    if cleaned and cleaned != "-":
+                        return int(cleaned)
+                except ValueError:
+                    pass
                 return 0
         if transform == "float":
             try:
-                return float(re.sub(r"[^\d.-]", "", str(value)))
+                # First try direct conversion
+                return float(str(value))
             except ValueError:
+                try:
+                    # Only keep first decimal point
+                    parts = str(value).split(".")
+                    if len(parts) > 2:
+                        # Multiple decimal points - invalid
+                        return 0.0
+                    cleaned = re.sub(r"[^\d.-]", "", str(value))
+                    if cleaned and cleaned not in ("-", "."):
+                        return float(cleaned)
+                except ValueError:
+                    pass
                 return 0.0
         if transform == "bool":
             return bool(value)
@@ -245,6 +268,8 @@ class HtmlParser:
                 metadata["author"] = content
             elif property.startswith("og:"):
                 metadata["og_data"][property] = content
+                # Also add at top level for backward compatibility
+                metadata[property] = content
             elif name.startswith("twitter:"):
                 metadata["twitter_data"][name] = content
 
