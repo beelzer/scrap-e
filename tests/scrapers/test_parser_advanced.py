@@ -100,12 +100,12 @@ class TestHtmlParserAdvanced:
         """
         parser = HtmlParser(html)
 
-        # Single match with group
+        # Single match with a group
         rule = ExtractionRule(name="price", regex=r"Price: \$(\d+\.\d+)")
         result = parser.extract_with_rule(rule)
         assert result == "99.99"
 
-        # Single match without group
+        # Single match without a group
         rule_no_group = ExtractionRule(name="email", regex=r"[a-z]+@[a-z]+\.[a-z]+")
         result = parser.extract_with_rule(rule_no_group)
         assert result == "test@example.com"
@@ -292,7 +292,7 @@ class TestHtmlParserAdvanced:
             name="optional", selector=".nonexistent", required=False, default="fallback"
         )
 
-        # Should return default for non-required field
+        # Should return default for a non-required field
         result = parser.extract_with_rule(rule)
         assert result == "fallback"
 
@@ -319,7 +319,7 @@ class TestHtmlParserAdvanced:
         """
         parser = HtmlParser(html)
 
-        # Navigate nested object
+        # Navigate to a nested object
         rule = ExtractionRule(name="deep", json_path="nested.object.deep.field")
         result = parser.extract_with_rule(rule)
         assert result == "value"
@@ -329,7 +329,7 @@ class TestHtmlParserAdvanced:
         result = parser.extract_with_rule(rule_array)
         assert result == "first"
 
-        # Invalid path returns default when JSON path fails
+        # Invalid path returns default when the JSON path fails
         rule_invalid = ExtractionRule(
             name="invalid", json_path="nested.nonexistent.field", default="N/A"
         )
@@ -337,7 +337,7 @@ class TestHtmlParserAdvanced:
         # The extract_with_rule should return the default for invalid paths
         assert result == "N/A"
 
-        # Out of bounds array index
+        # Out-of-bounds array index
         rule_oob = ExtractionRule(name="oob", json_path="nested.array.10.value", default="N/A")
         result = parser.extract_with_rule(rule_oob)
         assert result == "N/A"
@@ -499,7 +499,7 @@ class TestHtmlParserAdvanced:
         all_tables = parser.extract_all_tables()
         assert len(all_tables) == 2
 
-        # Table without header
+        # Table without a header
         no_header_table = parser.extract_table("#no-header")
         assert no_header_table["headers"] == []
         assert len(no_header_table["rows"]) == 2
@@ -570,15 +570,15 @@ class TestHtmlParserAdvanced:
         """
         parser = HtmlParser(html)
 
-        # Try to access array element
+        # Try to access an array element
         rule = ExtractionRule(name="item", json_path="1")
         result = parser.extract_with_rule(rule)
         assert result == "item2"
 
-        # Invalid path on array returns default
+        # Invalid path on an array returns default
         rule_invalid = ExtractionRule(name="invalid", json_path="key.value", default="N/A")
         result = parser.extract_with_rule(rule_invalid)
-        # When JSON path fails, it returns the default
+        # When a JSON path fails, it returns the default
         assert result == "N/A" or result is None
 
     def test_extract_forms(self):
