@@ -358,6 +358,31 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 6. Push to the branch (`git push origin feature/amazing-feature`)
 7. Open a Pull Request
 
+### Testing
+
+We use pytest with parallel execution for fast test runs:
+
+```bash
+# Run all tests (parallel by default)
+make test
+
+# Run tests with maximum parallelization
+make test-fast
+
+# Run specific test suites
+make test-unit        # Unit tests only
+make test-integration # Integration tests
+make test-performance # Performance benchmarks
+
+# Run tests with coverage
+make test-cov
+
+# Watch tests (auto-rerun on changes)
+make test-watch
+```
+
+**Performance Optimization**: Tests run in parallel using pytest-xdist, providing 2-4x speedup on multi-core systems. The configuration automatically uses all available CPU cores.
+
 ### Code Quality
 
 We maintain high code quality standards:

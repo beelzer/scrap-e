@@ -38,7 +38,7 @@ def create_mock_response(
         mock_response.headers["content-type"] = "application/json"
 
     # Add is_success property
-    mock_response.is_success = status_code >= 200 and status_code < 300
+    mock_response.is_success = 200 <= status_code < 300
 
     return mock_response
 

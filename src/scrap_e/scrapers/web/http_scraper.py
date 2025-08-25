@@ -121,9 +121,15 @@ class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
 
     def _build_request(self, url: str, **kwargs: Any) -> HttpRequest:
         """Build HTTP request from URL and kwargs."""
+        from scrap_e.core.models import RequestMethod
+
+        # Get a method and convert to RequestMethod enum
+        method_str = kwargs.get("method", "GET").upper()
+        method = RequestMethod(method_str)
+
         request = HttpRequest(
             url=HttpUrl(url),
-            method=kwargs.get("method", "GET"),
+            method=method,
             headers=kwargs.get("headers", {}),
             params=kwargs.get("params", {}),
             data=kwargs.get("data"),
@@ -142,8 +148,13 @@ class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
 
     async def _make_request(self, request: HttpRequest) -> httpx.Response:
         """Make HTTP request."""
+        # Merge custom headers from config if available
+        headers = request.headers or {}
+        if hasattr(self.config, "headers") and self.config.headers:
+            headers = {**self.config.headers, **headers}
+
         kwargs = {
-            "headers": request.headers,
+            "headers": headers,
             "params": request.params,
             "timeout": request.timeout,
             "follow_redirects": request.follow_redirects,
@@ -285,12 +296,20 @@ class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
         if not result.success or not result.data:
             return None
 
-        # Check for next page link in extracted data
+        # Check max_pages limit
+        if (
+            self.config.pagination.enabled
+            and self.config.pagination.max_pages
+            and page_number >= self.config.pagination.max_pages
+        ):
+            return None
+
+        # Check for the next page link in extracted data
         if result.data.extracted_data and "next_page_url" in result.data.extracted_data:
             next_url = result.data.extracted_data["next_page_url"]
             return next_url if isinstance(next_url, str) else None
 
-        # Check for next page in pagination config
+        # Check for the next page in pagination config
         if self.config.pagination.enabled:
             if self.config.pagination.next_page_selector and result.data.content:
                 parser = HtmlParser(result.data.content)
@@ -303,7 +322,17 @@ class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
 
             # URL pattern-based pagination
             if self.config.pagination.next_page_url_pattern:
-                return self.config.pagination.next_page_url_pattern.format(page=page_number + 1)
+                pattern = self.config.pagination.next_page_url_pattern
+                # Handle offset-based pagination
+                if "{offset}" in pattern:
+                    # Calculate offset based on page number and items per page
+                    items_per_page = 20  # Default could be configurable
+                    offset = page_number * items_per_page
+                    return pattern.format(offset=offset)
+                # Handle page-based pagination
+                if "{page}" in pattern:
+                    return pattern.format(page=page_number + 1)
+                return pattern
 
         return None
 
@@ -346,14 +375,73 @@ class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
                     urls.append(url.text)
         return urls
 
-    async def scrape_with_session(
-        self, urls: list[str], session_cookies: dict[str, str] | None = None
+    async def scrape_paginated(
+        self, url: str, max_pages: int | None = None, **kwargs: Any
     ) -> list[ScraperResult[WebPageData]]:
-        """Scrape multiple URLs while maintaining session."""
+        """Scrape multiple pages following pagination."""
+        results = []
+        current_url = url
+        page_number = 1
+        max_pages = max_pages or self.config.pagination.max_pages
+
+        while current_url and (max_pages is None or page_number <= max_pages):
+            result = await self.scrape(current_url, **kwargs)
+            results.append(result)
+
+            if result.success:
+                # Check for the stop condition if configured
+                if (
+                    hasattr(self.config.pagination, "stop_condition")
+                    and self.config.pagination.stop_condition
+                    and result.data
+                    and result.data.content
+                    and self.config.pagination.stop_condition in result.data.content
+                ):
+                    break
+
+                current_url = await self._get_next_page(current_url, result, page_number)
+                page_number += 1
+            else:
+                break
+
+        return results
+
+    async def scrape_with_pagination(
+        self, url: str, stop_condition: Any | None = None, **kwargs: Any
+    ) -> list[ScraperResult[WebPageData]]:
+        """Scrape with pagination and optional stop condition."""
+        results = []
+        current_url = url
+        page_number = 1
+
+        while current_url:
+            result = await self.scrape(current_url, **kwargs)
+            results.append(result)
+
+            # Check stop condition
+            if stop_condition and callable(stop_condition) and stop_condition(result):
+                break
+
+            # Get next page
+            if result.success:
+                current_url = await self._get_next_page(current_url, result, page_number)
+                page_number += 1
+            else:
+                break
+
+        return results
+
+    async def scrape_with_session(
+        self,
+        urls: list[str],
+        initial_cookies: dict[str, str] | None = None,
+        session_cookies: dict[str, str] | None = None,
+    ) -> list[ScraperResult[WebPageData]]:
+        """Scrape multiple URLs while maintaining a session."""
         results = []
 
         # Store cookies across requests
-        cookies = session_cookies or {}
+        cookies = initial_cookies or session_cookies or {}
 
         for url in urls:
             result = await self.scrape(url, cookies=cookies)
@@ -370,3 +458,34 @@ class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
             results.append(result)
 
         return results
+
+    def session(self):
+        """Create a session context for multiple requests."""
+        return self
+
+    async def __aenter__(self):
+        """Enter the session context."""
+        await self._initialize()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Exit the session context."""
+        await self._cleanup()
+
+    async def make_request(self, url: str, method: str = "GET", **kwargs: Any) -> WebPageData:
+        """Make an HTTP request with custom method and options."""
+        if not self._client:
+            await self._initialize()
+
+        if self._client is None:
+            raise ScraperError("HTTP client not initialized")
+
+        response = await self._client.request(method, url, **kwargs)
+        response.raise_for_status()
+
+        return WebPageData(
+            url=str(response.url),
+            status_code=response.status_code,
+            headers=dict(response.headers),
+            content=response.text if hasattr(response, "text") else response.content.decode(),
+        )

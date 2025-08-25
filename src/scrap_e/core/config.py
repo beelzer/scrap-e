@@ -184,6 +184,15 @@ class WebScraperConfig(ScraperConfig):
     extract_images: bool = True
     extract_metadata: bool = True
 
+    # Browser-specific settings (override from ScraperConfig)
+    headless: bool | None = None  # Alias for browser_headless
+    browser_args: list[str] | None = None
+    viewport_width: int | None = None  # Alias for browser_viewport_width
+    viewport_height: int | None = None  # Alias for browser_viewport_height
+    geolocation: dict[str, float] | None = None
+    permissions: list[str] | None = None
+    offline: bool = False
+
 
 class APIScraperConfig(ScraperConfig):
     """Configuration specific to API scraping."""

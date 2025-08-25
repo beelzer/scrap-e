@@ -31,7 +31,7 @@ class TestHttpScraperIntegration:
         # Initially no rules
         assert len(scraper.extraction_rules) == 0
 
-        # Add single rule
+        # Add a single rule
         rule1 = ExtractionRule(name="title", selector="h1")
         scraper.add_extraction_rule(rule1)
         assert len(scraper.extraction_rules) == 1
@@ -91,7 +91,7 @@ class TestHttpScraperIntegration:
         assert len(paragraphs) == 2
 
     async def test_scraper_session_management(self):
-        """Test HTTP scraper session lifecycle."""
+        """Test the HTTP scraper session lifecycle."""
         scraper = HttpScraper()
 
         # Test initialization

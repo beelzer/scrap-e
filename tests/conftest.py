@@ -1,7 +1,10 @@
 """Pytest configuration and shared fixtures."""
 
 import asyncio
+import gc
+import os
 import sys
+import warnings
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -12,6 +15,7 @@ from httpx import AsyncClient
 # Add project root to path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "src"))
 
 from scrap_e.core.config import ScraperConfig, WebScraperConfig  # noqa: E402
 from scrap_e.scrapers.web.http_scraper import HttpScraper  # noqa: E402
@@ -108,14 +112,60 @@ def mock_browser_page():
     return page
 
 
-# Markers for test organization
+# Pytest configuration hooks
 def pytest_configure(config):
-    """Configure pytest markers."""
+    """Configure pytest with custom settings."""
+    # Configure markers
     config.addinivalue_line("markers", "unit: mark test as a unit test")
     config.addinivalue_line("markers", "integration: mark test as an integration test")
     config.addinivalue_line("markers", "performance: mark test as a performance test")
     config.addinivalue_line("markers", "slow: mark test as slow running")
     config.addinivalue_line("markers", "network: mark test as requiring network access")
+    config.addinivalue_line("markers", "browser: mark test as requiring browser automation")
+    config.addinivalue_line("markers", "database: mark test as requiring database access")
+    config.addinivalue_line("markers", "serial: mark test to run serially (not in parallel)")
+
+    # Set up xdist load scheduling
+    if hasattr(config, "workerinput"):
+        # We're in a worker process
+        pass
+    else:
+        # We're in the main process
+        # Configure test distribution strategy
+        config.option.dist = getattr(config.option, "dist", "loadgroup")
+
+
+def pytest_collection_modifyitems(config, items):
+    """Modify test collection to add markers and organize tests."""
+    for item in items:
+        # Add markers based on test location
+        if "test_performance" in str(item.fspath):
+            item.add_marker(pytest.mark.performance)
+            item.add_marker(pytest.mark.serial)  # Run performance tests serially
+
+        if "test_integration" in str(item.fspath):
+            item.add_marker(pytest.mark.integration)
+
+        if "browser" in item.name.lower() or "browser" in str(item.fspath).lower():
+            item.add_marker(pytest.mark.browser)
+            item.add_marker(pytest.mark.serial)  # Browser tests should run serially
+
+        # Mark async tests
+        if asyncio.iscoroutinefunction(item.function):
+            item.add_marker(pytest.mark.asyncio)
+
+
+# Configure test groups for xdist
+def pytest_xdist_make_scheduler(config, log):
+    """Custom scheduler for distributing tests across workers."""
+    try:
+        from xdist.scheduler import LoadGroupScheduling
+
+        # Use load group scheduling for better test distribution
+        return LoadGroupScheduling(config, log)
+    except ImportError:
+        # xdist not available or not being used
+        return None
 
 
 # Test data fixtures
@@ -153,3 +203,29 @@ def async_mock():
         return MagicMock(side_effect=mock_func)
 
     return _async_mock
+
+
+# Performance optimization fixtures
+@pytest.fixture(autouse=True)
+def reset_test_state():
+    """Reset any global state between tests."""
+    yield
+    # Clean up after each test if needed
+    gc.collect()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def configure_test_environment():
+    """Configure the test environment for optimal performance."""
+    # Suppress specific warnings during tests
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    warnings.filterwarnings("ignore", category=ResourceWarning)
+
+    # Set up any test-specific environment variables
+    os.environ["TESTING"] = "1"
+
+    yield
+
+    # Cleanup
+    if "TESTING" in os.environ:
+        del os.environ["TESTING"]

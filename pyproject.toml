@@ -143,6 +143,9 @@ addopts = [
     "--cov-report=term-missing:skip-covered",
     "--cov-report=html",
     "--cov-report=xml",
+    "-n=auto",  # Use all available CPU cores for parallel execution
+    "--dist=loadgroup",  # Distribute tests by load groups
+    "--maxprocesses=8",  # Limit max processes to avoid overwhelming the system
 ]
 testpaths = ["tests"]
 pythonpath = ["src"]
@@ -152,6 +155,10 @@ markers = [
     "integration: mark test as an integration test",
     "slow: mark test as slow running",
     "benchmark: mark test as a benchmark test",
+    "browser: mark test as requiring browser automation",
+    "network: mark test as requiring network access",
+    "database: mark test as requiring database access",
+    "serial: mark test to run serially (not in parallel)",
 ]
 asyncio_default_fixture_loop_scope = "function"
 filterwarnings = [

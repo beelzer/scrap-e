@@ -76,7 +76,7 @@ class TestHttpScraperParserIntegration:
         assert len(result.data.tables) == 1
 
         table = result.data.tables[0]
-        assert len(table) >= 3  # Headers + at least 2 data rows
+        assert len(table) >= 3  # Headers and at least 2 data rows
 
     @pytest.mark.asyncio
     async def test_scrape_with_transforms(self):

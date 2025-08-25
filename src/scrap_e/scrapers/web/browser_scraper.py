@@ -26,6 +26,8 @@ class BrowserPageData(BaseModel):
     screenshot: bytes | None = None
     extracted_data: dict[str, Any] | None = None
     metadata: dict[str, Any] | None = None
+    links: list[dict[str, str]] | None = None
+    images: list[dict[str, str]] | None = None
     cookies: list[dict[str, Any]] | None = None
     console_logs: list[str] | None = None
     network_requests: list[dict[str, Any]] | None = None
@@ -42,7 +44,7 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
         self.extraction_rules: list[ExtractionRule] = []
 
     def _get_default_config(self) -> WebScraperConfig:
-        """Get default configuration for browser scraper."""
+        """Get the default configuration for browser scraper."""
         return WebScraperConfig(enable_javascript=True)
 
     @property
@@ -57,31 +59,81 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
 
             # Launch browser based on config
             browser_type = getattr(self._playwright, self.config.browser_type)
-            self._browser = await browser_type.launch(
-                headless=self.config.browser_headless,
-                args=(
-                    ["--no-sandbox", "--disable-setuid-sandbox"]
-                    if self.config.browser_headless
-                    else []
-                ),
+
+            # Determine headless mode
+            headless = (
+                self.config.headless
+                if hasattr(self.config, "headless") and self.config.headless is not None
+                else self.config.browser_headless
             )
 
-            # Create browser context with viewport
+            # Prepare browser launch arguments
+            default_args = ["--no-sandbox", "--disable-setuid-sandbox"] if headless else []
+
+            # Add custom browser args if provided
+            if hasattr(self.config, "browser_args") and self.config.browser_args:
+                browser_args = default_args + self.config.browser_args
+            else:
+                browser_args = default_args
+
+            launch_args = {
+                "headless": headless,
+                "args": browser_args,
+            }
+
+            # Add proxy configuration if available
+            if hasattr(self.config, "proxy") and isinstance(self.config.proxy, dict):
+                launch_args["proxy"] = self.config.proxy
+
+            self._browser = await browser_type.launch(**launch_args)
+
+            # Create browser context with a viewport
             if self._browser is None:
                 raise ScraperError("Browser not initialized")
-            self._context = await self._browser.new_context(
-                viewport={
-                    "width": self.config.browser_viewport_width,
-                    "height": self.config.browser_viewport_height,
-                },
-                user_agent=self.config.user_agent,
-                ignore_https_errors=not self.config.verify_ssl,
+
+            # Determine viewport dimensions
+            viewport_width = (
+                self.config.viewport_width
+                if hasattr(self.config, "viewport_width") and self.config.viewport_width
+                else self.config.browser_viewport_width
             )
+            viewport_height = (
+                self.config.viewport_height
+                if hasattr(self.config, "viewport_height") and self.config.viewport_height
+                else self.config.browser_viewport_height
+            )
+
+            context_options = {
+                "viewport": {
+                    "width": viewport_width,
+                    "height": viewport_height,
+                },
+                "user_agent": self.config.user_agent,
+                "ignore_https_errors": not self.config.verify_ssl,
+            }
+
+            # Add proxy configuration if available
+            if hasattr(self.config, "proxy") and isinstance(self.config.proxy, dict):
+                context_options["proxy"] = self.config.proxy
+
+            # Add geolocation if configured
+            if hasattr(self.config, "geolocation") and self.config.geolocation:
+                context_options["geolocation"] = self.config.geolocation
+
+            # Add permissions if configured
+            if hasattr(self.config, "permissions") and self.config.permissions:
+                context_options["permissions"] = self.config.permissions
+
+            # Add offline mode if configured
+            if hasattr(self.config, "offline") and self.config.offline:
+                context_options["offline"] = True
+
+            self._context = await self._browser.new_context(**context_options)
 
             self.logger.info(
                 "Browser initialized",
                 browser_type=self.config.browser_type,
-                headless=self.config.browser_headless,
+                headless=headless,
             )
 
     async def _cleanup(self) -> None:
@@ -101,21 +153,27 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
         self.logger.info("Browser resources cleaned up")
 
     async def _scrape(self, source: str, **kwargs: Any) -> BrowserPageData:
-        """Scrape a web page using browser."""
+        """Scrape a web page using a browser."""
         if not self._context:
             await self._initialize()
 
         if self._context is None:
             raise ScraperError("Browser context not initialized")
 
+        # Handle cookies if provided
+        if cookies := kwargs.get("cookies"):
+            await self._context.add_cookies(cookies)
+
         page: Page | None = None
         try:
             page = await self._context.new_page()
 
             # Set up monitoring
-            console_logs, network_requests = await self._setup_page_monitoring(page, **kwargs)
+            console_logs, network_requests = await BrowserScraper._setup_page_monitoring(
+                page, **kwargs
+            )
 
-            # Load and prepare page
+            # Load and prepare the page with proper timeout handling
             await self._load_page(page, source, **kwargs)
 
             # Extract data
@@ -134,9 +192,8 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
             if page:
                 await page.close()
 
-    async def _setup_page_monitoring(
-        self, page: Page, **kwargs: Any
-    ) -> tuple[list[Any], list[Any]]:
+    @staticmethod
+    async def _setup_page_monitoring(page: Page, **kwargs: Any) -> tuple[list[Any], list[Any]]:
         """Set up console and network monitoring."""
         console_logs = []
         network_requests = []
@@ -159,7 +216,7 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
         return console_logs, network_requests
 
     async def _load_page(self, page: Page, source: str, **kwargs: Any) -> None:
-        """Load page with navigation and interactions."""
+        """Load the page with navigation and interactions."""
         await self._navigate_to_page(page, source, **kwargs)
         await self._wait_for_content(page, **kwargs)
 
@@ -169,7 +226,7 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
 
         # Scroll to load lazy content if requested
         if kwargs.get("scroll_to_bottom", False):
-            await self._scroll_to_bottom(page)
+            await BrowserScraper._scroll_to_bottom(page)
 
     async def _enhance_page_data(
         self,
@@ -216,7 +273,13 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
     async def _navigate_to_page(self, page: Page, url: str, **kwargs: Any) -> None:
         """Navigate to a URL with proper wait conditions."""
         wait_until = kwargs.get("wait_until", self.config.browser_wait_until)
-        timeout = kwargs.get("timeout", self.config.browser_timeout) * 1000
+        # Handle timeout - if passed as milliseconds, use directly; otherwise convert from seconds
+        timeout = kwargs.get("timeout")
+        if timeout is None:
+            timeout = self.config.browser_timeout * 1000
+        elif timeout < 1000:
+            # Assume it's in seconds if less than 1000
+            timeout = timeout * 1000
 
         try:
             await page.goto(url, wait_until=wait_until, timeout=timeout)
@@ -225,19 +288,21 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
 
     async def _wait_for_content(self, page: Page, **kwargs: Any) -> None:
         """Wait for content to load based on configuration."""
-        # Wait for specific selector if provided
-        if wait_selector := (kwargs.get("wait_for_selector") or self.config.wait_for_selector):
+        # Wait for a specific selector if provided
+        wait_selector = kwargs.get("wait_for_selector") or self.config.wait_for_selector
+        if wait_selector:
             timeout = kwargs.get("wait_for_timeout", self.config.wait_for_timeout) * 1000
             try:
                 await page.wait_for_selector(wait_selector, timeout=timeout)
-            except Exception:
+            except TimeoutError:
                 self.logger.warning(f"Timeout waiting for selector: {wait_selector}")
 
         # Additional wait time if specified
         if wait_time := kwargs.get("wait_time"):
             await asyncio.sleep(wait_time)
 
-    async def _scroll_to_bottom(self, page: Page) -> None:
+    @staticmethod
+    async def _scroll_to_bottom(page: Page) -> None:
         """Scroll to the bottom of the page to trigger lazy loading."""
         await page.evaluate(
             """
@@ -271,6 +336,16 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
             parser = HtmlParser(content)
             page_data.metadata = parser.extract_metadata()
 
+        # Extract links if configured
+        if self.config.extract_links and content:
+            parser = HtmlParser(content)
+            page_data.links = parser.extract_links()
+
+        # Extract images if configured
+        if self.config.extract_images and content:
+            parser = HtmlParser(content)
+            page_data.images = parser.extract_images()
+
         return page_data
 
     async def _capture_screenshot(self, page: Page, **kwargs: Any) -> bytes:
@@ -290,7 +365,7 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
     async def _extract_data_from_page(
         self, page: Page, rules: list[ExtractionRule]
     ) -> dict[str, Any]:
-        """Extract data from page using extraction rules."""
+        """Extract data from the page using extraction rules."""
         extracted = {}
 
         for rule in rules:
@@ -323,12 +398,13 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
         if rule.multiple:
             values = []
             for element in elements:
-                value = await self._get_element_value(element, rule)
+                value = await BrowserScraper._get_element_value(element, rule)
                 values.append(value)
             return values
-        return await self._get_element_value(elements[0], rule)
+        return await BrowserScraper._get_element_value(elements[0], rule)
 
-    async def _get_element_value(self, element: Any, rule: ExtractionRule) -> Any:
+    @staticmethod
+    async def _get_element_value(element: Any, rule: ExtractionRule) -> Any:
         """Get value from a page element."""
         if rule.attribute:
             value = await element.get_attribute(rule.attribute)
@@ -336,11 +412,12 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
             value = await element.text_content()
 
         if rule.transform:
-            value = self._apply_transform(value, rule.transform)
+            value = BrowserScraper._apply_transform(value, rule.transform)
 
         return value
 
-    def _apply_transform(self, value: Any, transform: str) -> Any:
+    @staticmethod
+    def _apply_transform(value: Any, transform: str) -> Any:
         """Apply transformation to extracted value."""
         # String transformations
         if transform in {"strip", "lower", "upper"} and isinstance(value, str):
@@ -398,7 +475,7 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
         if not result.success or not result.data:
             return None
 
-        # Check for next page in extracted data
+        # Check for the next page in extracted data
         if result.data.extracted_data and "next_page_url" in result.data.extracted_data:
             next_url = result.data.extracted_data["next_page_url"]
             return next_url if isinstance(next_url, str) else None
@@ -442,10 +519,16 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
 
             # Navigate through routes if provided
             if routes:
+                wait_after = kwargs.get("wait_after_navigation", 1)
                 for route in routes:
-                    # Navigate to route (client-side)
+                    # Navigate to the route (client-side)
                     await page.evaluate(f"window.location.hash = '{route}'")
-                    await asyncio.sleep(1)  # Wait for route change
+
+                    # Wait after navigation
+                    if wait_after and wait_after > 0:
+                        await page.wait_for_timeout(wait_after * 1000)
+                    else:
+                        await asyncio.sleep(1)  # Default wait
 
                     # Extract data from route
                     route_data = await self._extract_page_data(page, f"{url}#{route}")
@@ -472,6 +555,8 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
             await self._navigate_to_page(page, url, **kwargs)
             await self._wait_for_content(page, **kwargs)
 
+            wait_between_scrolls = kwargs.get("wait_between_scrolls", 2)
+
             # Scroll and collect content
             for i in range(max_scrolls):
                 prev_height = await page.evaluate("document.body.scrollHeight")
@@ -480,7 +565,7 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
                 await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
 
                 # Wait for new content to load
-                await asyncio.sleep(2)
+                await asyncio.sleep(wait_between_scrolls)
 
                 new_height = await page.evaluate("document.body.scrollHeight")
 
@@ -494,6 +579,26 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
 
         finally:
             await page.close()
+
+    async def scrape_paginated(
+        self, url: str, max_pages: int = 10, **kwargs: Any
+    ) -> list[ScraperResult[BrowserPageData]]:
+        """Scrape multiple pages following pagination."""
+        results = []
+        current_url = url
+        page_number = 1
+
+        while current_url and page_number <= max_pages:
+            result = await self.scrape(current_url, **kwargs)
+            results.append(result)
+
+            if result.success:
+                current_url = await self._get_next_page(current_url, result, page_number)
+                page_number += 1
+            else:
+                break
+
+        return results
 
     async def interact_and_scrape(
         self, url: str, interactions: list[dict[str, Any]], **kwargs: Any
@@ -537,6 +642,19 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
                     await page.select_option(selector, value)
                 elif action == "hover" and selector:
                     await page.hover(selector)
+                elif action == "check" and selector:
+                    await page.check(selector)
+                elif action == "uncheck" and selector:
+                    await page.uncheck(selector)
+                elif action == "type" and selector:
+                    value = interaction.get("value", "")
+                    await page.type(selector, value)
+                elif action == "keyboard":
+                    keys = interaction.get("keys", "")
+                    await page.keyboard.type(keys)
+                elif action == "press":
+                    key = interaction.get("key", "")
+                    await page.keyboard.press(key)
                 elif action == "wait":
                     wait_time = interaction.get("time", 1)
                     await asyncio.sleep(wait_time)
@@ -549,3 +667,26 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
 
         finally:
             await page.close()
+
+    def extract_page_data(self, html: str) -> dict[str, Any]:
+        """Extract structured data from HTML content."""
+        parser = HtmlParser(html)
+        return {
+            "title": parser.extract_metadata().get("title"),
+            "metadata": parser.extract_metadata(),
+            "links": parser.extract_links() if self.config.extract_links else [],
+            "images": parser.extract_images() if self.config.extract_images else [],
+        }
+
+    @staticmethod
+    async def interact_with_checkbox(page: Page, selector: str, check: bool = True) -> None:
+        """Interact with a checkbox element."""
+        if check:
+            await page.check(selector)
+        else:
+            await page.uncheck(selector)
+
+    @staticmethod
+    async def interact_with_keyboard(page: Page, keys: str) -> None:
+        """Type keyboard input."""
+        await page.keyboard.type(keys)

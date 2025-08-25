@@ -11,8 +11,26 @@ install-dev:
 test:
 	uv run pytest
 
+test-fast:
+	uv run pytest -n auto --dist loadgroup
+
+test-parallel:
+	uv run pytest -n 8 --dist loadscope
+
+test-unit:
+	uv run pytest tests/unit -n auto
+
+test-integration:
+	uv run pytest tests/integration -n 2
+
+test-performance:
+	uv run pytest tests/performance -n 1 --benchmark-only
+
 test-cov:
 	uv run pytest --cov=scrap_e --cov-report=html --cov-report=term
+
+test-watch:
+	uv run pytest-watch -- -n auto
 
 # Code quality
 lint:
