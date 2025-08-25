@@ -611,4 +611,4 @@ asyncio.run(bulk_data_processing())
 - Learn about [database scraping](database-scraping.md) for direct database access
 - Explore [web scraping](web-scraping.md) for HTML content extraction
 - Review [configuration options](../getting-started/configuration.md) for API-specific settings
-- Check out [performance optimization](performance.md) for high-volume API scraping
+- Check out [performance optimization](web-scraping.md#performance-optimization) for high-volume API scraping

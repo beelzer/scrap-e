@@ -233,7 +233,7 @@ docker run --rm scrap-e scrap-e doctor
 If you encounter issues:
 
 1. Run `scrap-e doctor` for diagnostic information
-2. Check the [troubleshooting guide](../user-guide/troubleshooting.md)
+2. Check the [troubleshooting guide](../user-guide/error-handling.md)
 3. Search [GitHub issues](https://github.com/beelzer/scrap-e/issues)
 4. Create a new issue with diagnostic output
 
@@ -242,4 +242,4 @@ If you encounter issues:
 - Read the [Quick Start Guide](quickstart.md) to create your first scraper
 - Learn about [Configuration](configuration.md) options
 - Explore the [User Guide](../user-guide/web-scraping.md) for detailed examples
-- Check out the [CLI documentation](../user-guide/cli.md) for command-line usage
+- Check out the [CLI documentation](../user-guide/cli-usage.md) for command-line usage

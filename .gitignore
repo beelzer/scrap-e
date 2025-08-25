@@ -100,3 +100,6 @@ output/
 test_output/
 test_*.json
 test_*.csv
+
+# MkDocs build output
+site/

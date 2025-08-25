@@ -73,6 +73,18 @@ repos:
         args: [-color]
         files: '^\.github/workflows/.*\.ya?ml$'
 
+  # Local hooks for MkDocs validation
+  - repo: local
+    hooks:
+      - id: mkdocs-validation
+        name: Validate MkDocs configuration and links
+        entry: mkdocs
+        args: [build, --strict, --quiet]
+        language: system
+        files: '^(mkdocs\.yml|docs/.*\.(md|yml))$'
+        pass_filenames: false
+        description: Check that MkDocs can build without errors or warnings
+
 # Configuration for specific hooks
 exclude: |
   (?x)^(
@@ -89,6 +101,7 @@ exclude: |
     venv/.*|
     htmlcov/.*|
     docs/_build/.*|
+    site/.*|
     __pycache__/.*|
     \.coverage|
     coverage\.xml|

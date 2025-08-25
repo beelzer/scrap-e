@@ -521,7 +521,7 @@ config = WebScraperConfig(
 
 ## Next Steps
 
-- Learn about [extraction rules](../user-guide/extraction-rules.md)
+- Learn about [extraction rules](../user-guide/web-scraping.md#data-extraction-with-rules)
 - Explore [web scraping techniques](../user-guide/web-scraping.md)
 - Check out [API scraping](../user-guide/api-scraping.md) patterns
-- Review [performance optimization](../user-guide/performance.md) tips
+- Review [performance optimization](#performance-tuning) tips

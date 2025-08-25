@@ -718,4 +718,4 @@ scraper = BrowserScraper(config)
 - Explore [API scraping](api-scraping.md) for REST and GraphQL APIs
 - Learn about [database scraping](database-scraping.md) for direct data access
 - Check out [file processing](file-processing.md) for local file extraction
-- Review [performance optimization](performance.md) techniques
+- Review [performance optimization](#performance-optimization) techniques
