@@ -84,6 +84,8 @@ desktop.ini
 # Scraped data
 data/
 output/
+examples/output/
+examples/exports/
 
 # Temporary files
 *.tmp

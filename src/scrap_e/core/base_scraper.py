@@ -55,6 +55,15 @@ class BaseScraper[T: BaseModel, ConfigT: ScraperConfig](ABC):
         """Perform the actual scraping operation."""
         ...
 
+    async def cleanup(self) -> None:
+        """
+        Public method to clean up scraper resources.
+
+        This method can be called to manually clean up resources like
+        browser instances, HTTP clients, database connections, etc.
+        """
+        await self._cleanup()
+
     async def scrape(self, source: str, **kwargs: Any) -> ScraperResult[T]:
         """
         Main public method to scrape data from a source.
