@@ -18,9 +18,15 @@ sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "src"))
 
 from scrap_e.core.config import ScraperConfig, WebScraperConfig  # noqa: E402
+from scrap_e.core.models import ExtractionRule  # noqa: E402
 from scrap_e.scrapers.web.http_scraper import HttpScraper  # noqa: E402
 from scrap_e.scrapers.web.parser import HtmlParser  # noqa: E402
 from tests.fixtures import BASIC_HTML, create_mock_response  # noqa: E402
+
+try:
+    from xdist.scheduler import LoadGroupScheduling
+except ImportError:
+    LoadGroupScheduling = None
 
 
 @pytest.fixture
@@ -158,22 +164,17 @@ def pytest_collection_modifyitems(config, items):
 # Configure test groups for xdist
 def pytest_xdist_make_scheduler(config, log):
     """Custom scheduler for distributing tests across workers."""
-    try:
-        from xdist.scheduler import LoadGroupScheduling
-
+    if LoadGroupScheduling:
         # Use load group scheduling for better test distribution
         return LoadGroupScheduling(config, log)
-    except ImportError:
-        # xdist not available or not being used
-        return None
+    # xdist not available or not being used
+    return None
 
 
 # Test data fixtures
 @pytest.fixture
 def sample_extraction_rules():
     """Provide sample extraction rules."""
-    from scrap_e.core.models import ExtractionRule
-
     return [
         ExtractionRule(name="title", selector="h1"),
         ExtractionRule(name="description", selector=".description"),

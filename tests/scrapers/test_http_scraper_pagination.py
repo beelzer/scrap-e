@@ -2,6 +2,7 @@
 
 from unittest.mock import AsyncMock, Mock, patch
 
+import httpx
 import pytest
 
 from scrap_e.core.config import PaginationConfig
@@ -413,11 +414,9 @@ class TestHttpScraperPagination:
         page1_response.raise_for_status = Mock()
 
         # Second page fails
-        from httpx import HTTPError
-
         with patch.object(http_scraper, "_client") as mock_client:
             mock_client.request = AsyncMock(
-                side_effect=[page1_response, HTTPError("Connection failed")]
+                side_effect=[page1_response, httpx.HTTPError("Connection failed")]
             )
 
             results = await http_scraper.scrape_paginated("https://example.com/page1")

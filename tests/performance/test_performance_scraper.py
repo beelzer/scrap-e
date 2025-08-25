@@ -3,6 +3,7 @@
 import json
 import re
 from functools import lru_cache
+from urllib.parse import urljoin, urlparse
 
 import pytest
 
@@ -108,8 +109,6 @@ def test_url_processing_performance(benchmark):
     ]
 
     def process_urls():
-        from urllib.parse import urljoin, urlparse
-
         results = []
         for url in relative_urls * 10:  # Process 100 URLs
             parsed = urlparse(url)
@@ -358,9 +357,6 @@ def test_data_validation_performance(benchmark):
         )
 
     def validate_data():
-        import re
-        from urllib.parse import urlparse
-
         valid_items = []
         email_pattern = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
         price_pattern = re.compile(r"^\$\d+\.?\d*$")

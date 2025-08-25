@@ -18,20 +18,17 @@ from .test_data import (
 )
 
 __all__ = [
-    # HTML samples
     "BASIC_HTML",
     "COMPLEX_HTML",
     "EMPTY_HTML",
+    "EXTRACTION_RULES",
     "FORM_HTML",
     "LARGE_HTML",
     "MALFORMED_HTML",
-    "TABLE_HTML",
-    # Mock responses
-    "create_mock_response",
-    "mock_http_error",
-    # Test data
-    "EXTRACTION_RULES",
     "SAMPLE_CONFIGS",
     "SAMPLE_METADATA",
     "SAMPLE_URLS",
+    "TABLE_HTML",
+    "create_mock_response",
+    "mock_http_error",
 ]

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Script to determine optimal number of test workers."""
+"""Script to determine the optimal number of test workers."""
 
 import multiprocessing
 import subprocess
@@ -8,7 +8,7 @@ import time
 
 
 def run_tests_with_workers(num_workers: int, test_path: str = "tests") -> float:
-    """Run tests with specified number of workers and return execution time."""
+    """Run tests with a specified number of workers and return execution time."""
     cmd = [
         sys.executable,
         "-m",
@@ -33,7 +33,7 @@ def run_tests_with_workers(num_workers: int, test_path: str = "tests") -> float:
 
 
 def main():
-    """Find optimal number of workers for test execution."""
+    """Find the optimal number of workers for test execution."""
     cpu_count = multiprocessing.cpu_count()
     test_path = sys.argv[1] if len(sys.argv) > 1 else "tests/scrapers"
 

@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import httpx
 import pytest
 
+from scrap_e.core.models import HttpRequest
 from scrap_e.scrapers.web.http_scraper import HttpScraper, WebPageData
 
 
@@ -267,8 +268,6 @@ class TestHttpScraperSession:
         mock_client.request = AsyncMock(return_value=mock_response)
         http_scraper._client = mock_client
 
-        from scrap_e.core.models import HttpRequest
-
         request = HttpRequest(
             url="https://example.com", cookies={"session": "abc123", "user_id": "42"}
         )
@@ -330,8 +329,6 @@ class TestHttpScraperSession:
         mock_client.aclose = AsyncMock()  # Add async aclose method for cleanup
         mock_client.request = AsyncMock(return_value=final_response)
         http_scraper._client = mock_client
-
-        from scrap_e.core.models import HttpRequest
 
         request = HttpRequest(url="https://example.com/original", follow_redirects=True)
 

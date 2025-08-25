@@ -5,6 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
+from scrap_e.core.config import WebScraperConfig
+from scrap_e.core.models import HttpRequest
 from scrap_e.scrapers.web.http_scraper import HttpScraper, WebPageData
 from tests.fixtures import BASIC_HTML, create_mock_response, mock_http_error
 
@@ -23,8 +25,6 @@ class TestHttpScraperInitialization:
     @pytest.mark.asyncio
     async def test_initialization_with_config(self):
         """Test HTTP scraper initialization with custom config."""
-        from scrap_e.core.config import WebScraperConfig
-
         config = WebScraperConfig(
             timeout=60,
             headers={"User-Agent": "Test Bot"},
@@ -145,8 +145,6 @@ class TestHttpScraperRequestBuilding:
     @pytest.mark.asyncio
     async def test_build_request_basic(self, http_scraper):
         """Test basic request building."""
-        from scrap_e.core.models import HttpRequest
-
         request = HttpRequest(
             url="https://example.com",
             method="GET",
@@ -167,8 +165,6 @@ class TestHttpScraperRequestBuilding:
     @pytest.mark.asyncio
     async def test_build_request_with_headers(self, http_scraper):
         """Test request building with custom headers."""
-        from scrap_e.core.models import HttpRequest
-
         request = HttpRequest(
             url="https://example.com",
             headers={"Authorization": "Bearer token"},
@@ -187,8 +183,6 @@ class TestHttpScraperRequestBuilding:
     @pytest.mark.asyncio
     async def test_build_request_with_data(self, http_scraper):
         """Test request building with POST data."""
-        from scrap_e.core.models import HttpRequest
-
         request = HttpRequest(
             url="https://example.com",
             method="POST",
@@ -209,8 +203,6 @@ class TestHttpScraperRequestBuilding:
     @pytest.mark.asyncio
     async def test_build_request_with_params(self, http_scraper):
         """Test request building with query parameters."""
-        from scrap_e.core.models import HttpRequest
-
         request = HttpRequest(
             url="https://example.com",
             params={"q": "search", "page": "1"},

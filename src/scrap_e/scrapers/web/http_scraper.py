@@ -11,7 +11,13 @@ from pydantic import BaseModel, HttpUrl
 from scrap_e.core.base_scraper import PaginatedScraper
 from scrap_e.core.config import WebScraperConfig
 from scrap_e.core.exceptions import ConnectionError, ParsingError, ScraperError
-from scrap_e.core.models import ExtractionRule, HttpRequest, ScraperResult, ScraperType
+from scrap_e.core.models import (
+    ExtractionRule,
+    HttpRequest,
+    RequestMethod,
+    ScraperResult,
+    ScraperType,
+)
 from scrap_e.scrapers.web.parser import HtmlParser
 
 
@@ -121,8 +127,6 @@ class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
 
     def _build_request(self, url: str, **kwargs: Any) -> HttpRequest:
         """Build HTTP request from URL and kwargs."""
-        from scrap_e.core.models import RequestMethod
-
         # Get a method and convert to RequestMethod enum
         method_str = kwargs.get("method", "GET").upper()
         method = RequestMethod(method_str)

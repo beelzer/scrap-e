@@ -1,5 +1,6 @@
 """Performance benchmark tests for data extraction operations."""
 
+import json
 import random
 import string
 
@@ -364,8 +365,6 @@ def test_structured_data_extraction_performance(benchmark):
 
         # Extract JSON-LD
         for script in parser.soup.find_all("script", type="application/ld+json"):
-            import json
-
             try:
                 data = json.loads(script.string)
                 results["json_ld"].append(data)
