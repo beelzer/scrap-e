@@ -1,0 +1,76 @@
+# <type>(<scope>): <subject>
+#
+# <body>
+#
+# <footer>
+
+# --- COMMIT END ---
+# Type can be:
+#   feat     : New feature
+#   fix      : Bug fix
+#   docs     : Documentation only changes
+#   style    : Changes that do not affect the meaning of the code (white-space, formatting, missing semi-colons, etc)
+#   refactor : Code change that neither fixes a bug nor adds a feature
+#   perf     : Code change that improves performance
+#   test     : Adding missing or correcting existing tests
+#   build    : Changes that affect the build system or external dependencies (example scopes: pip, docker, npm)
+#   ci       : Changes to CI configuration files and scripts (example scopes: GitHub Actions, CircleCI)
+#   chore    : Other changes that don't modify src or test files
+#   revert   : Reverts a previous commit
+#
+# Scope is optional and can be anything specifying the place of the commit change.
+# For example: api, cli, scrapers, core, web, db, auth, etc.
+#
+# Subject should:
+#   - use the imperative, present tense: "change" not "changed" nor "changes"
+#   - don't capitalize first letter
+#   - no dot (.) at the end
+#   - limit to 50 characters
+#
+# Body should:
+#   - use the imperative, present tense
+#   - include motivation for the change and contrasts with previous behavior
+#   - wrap at 72 characters
+#   - can use multiple paragraphs separated by blank lines
+#   - can use bullet points (use - or *)
+#
+# Footer should contain:
+#   - Breaking changes: start with "BREAKING CHANGE:" followed by description
+#   - External references: GitHub issues, Jira tickets, etc.
+#   - Co-authors: Co-authored-by: name <email>
+#
+# Examples:
+#
+# feat(api): add rate limiting to prevent abuse
+#
+# Implement token bucket algorithm for API rate limiting.
+# Default limits: 100 requests per minute per IP.
+#
+# Closes #123
+#
+# ---
+#
+# fix(scrapers): handle empty responses in web scraper
+#
+# Previously, the web scraper would crash when receiving empty
+# responses from servers. Now it properly handles these cases
+# by returning an empty result set and logging a warning.
+#
+# - Add null check for response body
+# - Return empty list instead of throwing exception
+# - Add debug logging for empty responses
+#
+# Fixes #456
+#
+# ---
+#
+# BREAKING CHANGE: refactor(core): change scraper interface
+#
+# The base scraper class now requires implementing the
+# `validate()` method. All existing scrapers need to be updated.
+#
+# BREAKING CHANGE: Scraper.scrape() now returns ScraperResult
+# instead of dict. Update all code that calls scraper.scrape()
+# to handle the new return type.
+#
+# Refs #789

@@ -2,132 +2,66 @@
 
 ## Supported Versions
 
-Currently supported versions for security updates:
+We release patches for security vulnerabilities. Which versions are eligible for receiving such patches depends on the CVSS v3.0 Rating:
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.1.x   | :white_check_mark: |
+| latest  | :white_check_mark: |
+| < 1.0   | :x:                |
 
 ## Reporting a Vulnerability
 
-We take security seriously. If you discover a security vulnerability, please follow these steps:
+Please report (suspected) security vulnerabilities to **@beelzer** via GitHub Security Advisory or by email. You will receive a response from us within 48 hours. If the issue is confirmed, we will release a patch as soon as possible depending on complexity but historically within a few days.
 
-### 1. Do NOT Create a Public Issue
+### Process
 
-Security vulnerabilities should not be reported through public GitHub issues.
+1. **Do NOT** create a public GitHub issue for security vulnerabilities
+2. Email your findings to the maintainer or use GitHub's Security Advisory feature
+3. Provide sufficient information to reproduce the problem
+4. Include the following in your report:
+   - Type of issue (e.g., buffer overflow, SQL injection, cross-site scripting, etc.)
+   - Full paths of source file(s) related to the manifestation of the issue
+   - The location of the affected source code (tag/branch/commit or direct URL)
+   - Any special configuration required to reproduce the issue
+   - Step-by-step instructions to reproduce the issue
+   - Proof-of-concept or exploit code (if possible)
+   - Impact of the issue, including how an attacker might exploit the issue
 
-### 2. Contact Us Privately
+### What to Expect
 
-Please send a detailed report to: security@scrap-e.dev
-
-Or use GitHub's private vulnerability reporting:
-https://github.com/beelzer/scrap-e/security/advisories/new
-
-Include the following information:
-- Type of vulnerability
-- Full path of source file(s) related to the issue
-- Location of affected source code (tag/branch/commit or direct URL)
-- Step-by-step instructions to reproduce the issue
-- Proof-of-concept or exploit code (if possible)
-- Impact of the issue
-
-### 3. Response Timeline
-
-- We will acknowledge receipt within 48 hours
-- We will provide a detailed response within 7 days
-- We will work on a fix and coordinate disclosure
+- **Acknowledgment**: We will acknowledge receipt of your vulnerability report within 48 hours
+- **Communication**: We will keep you informed about the progress towards a fix and full announcement
+- **Credit**: We will credit you for the discovery when we announce the vulnerability (unless you prefer to remain anonymous)
+- **Disclosure Timeline**: We aim to fully disclose the vulnerability within 90 days of the initial report
 
 ## Security Best Practices for Users
 
-### When Using Scrap-E
+When using scrap-e:
 
-1. **Validate Input Sources**
-   - Always validate URLs and connection strings
-   - Use allow-lists for trusted domains
-   - Sanitize user input before scraping
+1. **Keep your installation updated** to the latest version
+2. **Never commit credentials** or API keys to your repository
+3. **Use environment variables** for sensitive configuration
+4. **Review scraped data** for sensitive information before sharing
+5. **Respect rate limits** and terms of service of scraped sources
+6. **Use secure connections** (HTTPS) when possible
+7. **Validate and sanitize** all scraped data before use
+8. **Monitor your logs** for suspicious activity
 
-2. **Handle Credentials Securely**
-   - Never hardcode credentials in code
-   - Use environment variables or secure vaults
-   - Rotate credentials regularly
+## Security Features
 
-3. **Rate Limiting**
-   - Always enable rate limiting to avoid overwhelming targets
-   - Respect robots.txt and terms of service
+scrap-e includes several security features:
 
-4. **Data Handling**
-   - Be cautious with scraped data
-   - Validate and sanitize extracted content
-   - Don't execute scraped JavaScript or code
+- Automatic credential masking in logs
+- Support for proxy rotation and authentication
+- Rate limiting and backoff strategies
+- Secure storage of session data
+- Input validation and sanitization
+- Support for various authentication methods
 
-### Example Secure Configuration
+## Contact
 
-```python
-from scrap_e import HttpScraper
-from scrap_e.core.config import WebScraperConfig
-import os
+For any security concerns, please contact:
+- GitHub: @beelzer
+- Use GitHub's private vulnerability reporting feature
 
-# Use environment variables for sensitive data
-config = WebScraperConfig(
-    # Security settings
-    verify_ssl=True,
-    follow_redirects=True,
-    max_redirects=5,
-
-    # Rate limiting
-    rate_limit={
-        "enabled": True,
-        "requests_per_second": 1,
-    },
-
-    # Timeouts to prevent hanging
-    default_timeout=30,
-)
-
-# Validate URLs before scraping
-allowed_domains = ["example.com", "trusted-site.org"]
-
-def is_safe_url(url: str) -> bool:
-    from urllib.parse import urlparse
-    domain = urlparse(url).netloc
-    return any(domain.endswith(allowed) for allowed in allowed_domains)
-
-# Use the scraper safely
-scraper = HttpScraper(config)
-url = "https://example.com/data"
-
-if is_safe_url(url):
-    result = await scraper.scrape(url)
-```
-
-## Known Security Considerations
-
-### Web Scraping
-- Be aware of XSS risks when parsing HTML
-- Don't execute JavaScript from untrusted sources
-- Validate SSL certificates (enabled by default)
-
-### Database Connections
-- Use parameterized queries
-- Limit database user permissions
-- Use connection pooling with limits
-
-### File Processing
-- Validate file types before processing
-- Set maximum file size limits
-- Scan for malware if processing user uploads
-
-## Security Updates
-
-Security updates will be released as patch versions (e.g., 0.1.1, 0.1.2).
-
-To stay updated:
-1. Watch this repository for security advisories
-2. Keep dependencies updated: `uv sync --upgrade`
-3. Subscribe to release notifications
-
-## Disclosure Policy
-
-- Security issues will be disclosed after a fix is available
-- We will credit researchers who report valid issues
-- A security advisory will be published for high-severity issues
+Thank you for helping keep scrap-e and its users safe!

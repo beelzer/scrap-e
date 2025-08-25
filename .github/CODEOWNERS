@@ -1,23 +1,36 @@
-# Code Owners for Scrap-E
-# These users will be automatically requested for review on pull requests
+# CODEOWNERS
+# This file defines code ownership for the repository
+# Owners will be requested for review when someone opens a pull request
 
 # Global owners (for all files)
 * @beelzer
 
-# Core framework
-/src/scrap_e/core/ @beelzer
-
-# Scrapers
-/src/scrap_e/scrapers/web/ @beelzer
-/src/scrap_e/scrapers/api/ @beelzer
-/src/scrap_e/scrapers/database/ @beelzer
-
 # Documentation
-/docs/ @beelzer
 *.md @beelzer
+docs/ @beelzer
+mkdocs.yml @beelzer
+
+# GitHub workflows and actions
+.github/workflows/ @beelzer
+.github/actions/ @beelzer
+
+# Core scraper modules
+src/scrap_e/ @beelzer
+scrap_e/ @beelzer
+
+# Tests
+tests/ @beelzer
+*_test.py @beelzer
+test_*.py @beelzer
 
 # Configuration files
-/pyproject.toml @beelzer
-/Dockerfile @beelzer
-/docker-compose.yml @beelzer
-/.github/ @beelzer
+*.yml @beelzer
+*.yaml @beelzer
+*.toml @beelzer
+pyproject.toml @beelzer
+uv.lock @beelzer
+
+# Security-sensitive files
+.env* @beelzer
+**/secrets/ @beelzer
+**/credentials/ @beelzer
