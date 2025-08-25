@@ -1,17 +1,17 @@
-name: 'Run Linting'
-description: 'Run code quality checks with ruff and mypy'
+name: "Run Linting"
+description: "Run code quality checks with ruff and mypy"
 inputs:
   run-ruff:
-    description: 'Run ruff linter'
+    description: "Run ruff linter"
     required: false
-    default: 'true'
+    default: "true"
   run-mypy:
-    description: 'Run mypy type checker'
+    description: "Run mypy type checker"
     required: false
-    default: 'true'
+    default: "true"
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Run ruff linter
       if: inputs.run-ruff == 'true'
@@ -33,4 +33,4 @@ runs:
         echo "Running mypy type checker..."
         uv run mypy src/
       shell: bash
-      continue-on-error: true  # Type checking failures shouldn't block CI initially
+      continue-on-error: true # Type checking failures shouldn't block CI initially

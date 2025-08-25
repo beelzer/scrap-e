@@ -1,21 +1,21 @@
-name: 'Run Benchmarks'
-description: 'Execute performance benchmarks with pytest-benchmark'
+name: "Run Benchmarks"
+description: "Execute performance benchmarks with pytest-benchmark"
 inputs:
   benchmark-args:
-    description: 'Additional arguments for pytest benchmark'
+    description: "Additional arguments for pytest benchmark"
     required: false
-    default: ''
+    default: ""
   compare-with:
-    description: 'Branch or commit to compare benchmarks with'
+    description: "Branch or commit to compare benchmarks with"
     required: false
-    default: ''
+    default: ""
   save-results:
-    description: 'Save benchmark results for comparison'
+    description: "Save benchmark results for comparison"
     required: false
-    default: 'true'
+    default: "true"
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Create benchmarks directory
       run: mkdir -p .benchmarks

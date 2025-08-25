@@ -456,30 +456,40 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 1. Fork the repository
 2. Clone your fork:
+
    ```bash
    git clone https://github.com/yourusername/scrap-e.git
    cd scrap-e
    ```
+
 3. Install development dependencies:
+
    ```bash
    uv sync --dev
    pre-commit install
    playwright install
    ```
+
 4. Create a feature branch:
+
    ```bash
    git checkout -b feature/amazing-feature
    ```
+
 5. Make your changes and run tests:
+
    ```bash
    make test
    make lint
    make type-check
    ```
+
 6. Commit your changes:
+
    ```bash
    git commit -m 'Add amazing feature'
    ```
+
 7. Push to your fork and open a Pull Request
 
 ### Testing

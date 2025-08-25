@@ -5,6 +5,7 @@ The HTML Parser provides advanced HTML parsing capabilities with multiple backen
 ## Overview
 
 The `HtmlParser` class offers a unified interface for HTML parsing using different backends:
+
 - **BeautifulSoup** - Python-native, feature-rich
 - **lxml** - C-based, high performance  
 - **selectolax** - Fastest CSS selector engine (optional)
@@ -270,12 +271,14 @@ urls = parser.extract_with_rule(url_rule)
 ### BeautifulSoup
 
 **Advantages:**
+
 - Pure Python, always available
 - Excellent error handling
 - Rich API for tree manipulation
 - Great for complex parsing tasks
 
 **Disadvantages:**
+
 - Slower than C-based parsers
 - Memory overhead for large documents
 
@@ -284,12 +287,14 @@ urls = parser.extract_with_rule(url_rule)
 ### lxml
 
 **Advantages:**
+
 - Fast C-based implementation
 - Full XPath support
 - Good balance of speed and features
 - Memory efficient
 
 **Disadvantages:**
+
 - External C dependency
 - Stricter HTML parsing
 
@@ -298,11 +303,13 @@ urls = parser.extract_with_rule(url_rule)
 ### selectolax
 
 **Advantages:**
+
 - Fastest CSS selector performance
 - Very low memory footprint
 - Simple, focused API
 
 **Disadvantages:**
+
 - Limited feature set
 - CSS selectors only (no XPath)
 - Optional dependency

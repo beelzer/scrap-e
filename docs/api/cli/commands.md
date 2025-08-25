@@ -65,11 +65,13 @@ scrap-e scrape URL [OPTIONS]
 #### Examples
 
 **Basic scraping:**
+
 ```bash
 scrap-e scrape https://example.com
 ```
 
 **Extract specific data:**
+
 ```bash
 scrap-e scrape https://news.example.com \
   --selector "h2.headline" \
@@ -78,6 +80,7 @@ scrap-e scrape https://news.example.com \
 ```
 
 **Browser scraping with JavaScript:**
+
 ```bash
 scrap-e scrape https://spa.example.com \
   --method browser \
@@ -87,6 +90,7 @@ scrap-e scrape https://spa.example.com \
 ```
 
 **XPath extraction:**
+
 ```bash
 scrap-e scrape https://example.com \
   --xpath "//h1/text()" \
@@ -125,6 +129,7 @@ scrap-e batch URL [URL ...] [OPTIONS]
 #### Examples
 
 **Basic batch scraping:**
+
 ```bash
 scrap-e batch \
   https://example.com/page1 \
@@ -133,6 +138,7 @@ scrap-e batch \
 ```
 
 **High concurrency with output directory:**
+
 ```bash
 scrap-e batch \
   https://site1.com \
@@ -143,6 +149,7 @@ scrap-e batch \
 ```
 
 **Browser batch scraping:**
+
 ```bash
 scrap-e batch \
   https://app1.example.com \
@@ -154,6 +161,7 @@ scrap-e batch \
 #### Output Structure
 
 When using `--output-dir`, files are saved as:
+
 - `result_0.json` - First URL result
 - `result_1.json` - Second URL result
 - etc.
@@ -187,17 +195,20 @@ scrap-e sitemap SITEMAP_URL [OPTIONS]
 #### Examples
 
 **Extract URLs from sitemap:**
+
 ```bash
 scrap-e sitemap https://example.com/sitemap.xml
 ```
 
 **Save URLs to file:**
+
 ```bash
 scrap-e sitemap https://blog.example.com/sitemap.xml \
   --output blog_urls.txt
 ```
 
 **Extract and scrape all URLs:**
+
 ```bash
 scrap-e sitemap https://shop.example.com/sitemap.xml --scrape
 ```
@@ -205,6 +216,7 @@ scrap-e sitemap https://shop.example.com/sitemap.xml --scrape
 #### Sitemap Support
 
 Supports standard XML sitemap formats:
+
 - Regular sitemaps (`<urlset>`)
 - Sitemap index files (`<sitemapindex>`)
 - Nested sitemaps (automatically resolved)
@@ -212,6 +224,7 @@ Supports standard XML sitemap formats:
 #### Output Format
 
 **URL extraction only:**
+
 ```
 https://example.com/page1
 https://example.com/page2
@@ -219,6 +232,7 @@ https://example.com/page3
 ```
 
 **With scraping (`--scrape` flag):**
+
 - Console output shows scraping progress
 - Results are not saved unless combined with `--output-dir` from batch command
 
@@ -308,11 +322,13 @@ scrap-e serve [OPTIONS]
 #### Examples
 
 **Start server on default host/port:**
+
 ```bash
 scrap-e serve
 ```
 
 **Custom host and port:**
+
 ```bash
 scrap-e serve --host 0.0.0.0 --port 8080
 ```
@@ -320,6 +336,7 @@ scrap-e serve --host 0.0.0.0 --port 8080
 #### Current Status
 
 This command is a placeholder for future API server functionality. Currently displays:
+
 ```
 Starting API server on 127.0.0.1:8000
 ⚠ WARNING API server not yet implemented
@@ -349,6 +366,7 @@ output:
 ```
 
 Use with any command:
+
 ```bash
 scrap-e --config scraper.yaml scrape https://example.com
 ```
@@ -426,23 +444,27 @@ Raw HTML content:
 ### Common Error Messages
 
 **Invalid URL:**
+
 ```
 Error: Invalid URL format: 'not-a-url'
 ```
 
 **Network timeout:**
+
 ```
 Error: Request timed out after 30 seconds
 URL: https://very-slow-site.com
 ```
 
 **Missing selector:**
+
 ```
 Error: No elements found for selector: '.nonexistent'
 URL: https://example.com
 ```
 
 **Browser not available:**
+
 ```
 Error: Browser 'chromium' not found
 Run 'scrap-e doctor' to check browser installation
@@ -457,6 +479,7 @@ scrap-e --debug scrape https://problematic-site.com
 ```
 
 Debug output includes:
+
 - HTTP request/response headers
 - Full exception tracebacks
 - Parser backend selection

@@ -1,25 +1,25 @@
-name: 'Build Package'
-description: 'Build Python package for distribution'
+name: "Build Package"
+description: "Build Python package for distribution"
 inputs:
   build-wheel:
-    description: 'Build wheel distribution'
+    description: "Build wheel distribution"
     required: false
-    default: 'true'
+    default: "true"
   build-sdist:
-    description: 'Build source distribution'
+    description: "Build source distribution"
     required: false
-    default: 'true'
+    default: "true"
   check-package:
-    description: 'Run package checks with twine'
+    description: "Run package checks with twine"
     required: false
-    default: 'true'
+    default: "true"
   upload-artifacts:
-    description: 'Upload built packages as artifacts'
+    description: "Upload built packages as artifacts"
     required: false
-    default: 'true'
+    default: "true"
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Clean previous builds
       run: |

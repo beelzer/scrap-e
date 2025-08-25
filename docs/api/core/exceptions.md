@@ -26,12 +26,14 @@ ScraperError (base)
 ::: scrap_e.core.exceptions.ConnectionError
 
 **Use Cases:**
+
 - DNS resolution failures
 - Network unreachable errors
 - Connection refused errors
 - SSL/TLS handshake failures
 
 **Example:**
+
 ```python
 from scrap_e.core.exceptions import ConnectionError
 from scrap_e.scrapers.web.http_scraper import HttpScraper
@@ -50,12 +52,14 @@ except ConnectionError as e:
 ::: scrap_e.core.exceptions.TimeoutError
 
 **Use Cases:**
+
 - Request timeouts
 - Browser navigation timeouts
 - Database query timeouts
 - File operation timeouts
 
 **Example:**
+
 ```python
 from scrap_e.core.exceptions import TimeoutError
 from scrap_e.core.config import WebScraperConfig
@@ -76,12 +80,14 @@ except TimeoutError as e:
 ::: scrap_e.core.exceptions.ParsingError
 
 **Use Cases:**
+
 - Invalid HTML structure
 - Missing required elements
 - XPath/CSS selector failures
 - Data transformation errors
 
 **Example:**
+
 ```python
 from scrap_e.core.exceptions import ParsingError
 from scrap_e.core.models import ExtractionRule
@@ -109,12 +115,14 @@ except ParsingError as e:
 ::: scrap_e.core.exceptions.AuthenticationError
 
 **Use Cases:**
+
 - Invalid API keys
 - Expired tokens
 - Login failures
 - Insufficient permissions
 
 **Example:**
+
 ```python
 from scrap_e.core.exceptions import AuthenticationError
 from scrap_e.scrapers.api.rest_scraper import RestScraper
@@ -138,12 +146,14 @@ except AuthenticationError as e:
 ::: scrap_e.core.exceptions.ConfigurationError
 
 **Use Cases:**
+
 - Invalid configuration values
 - Missing required settings
 - Conflicting configuration options
 - File permission issues
 
 **Example:**
+
 ```python
 from scrap_e.core.exceptions import ConfigurationError
 from scrap_e.core.config import WebScraperConfig
@@ -163,12 +173,14 @@ except ConfigurationError as e:
 ::: scrap_e.core.exceptions.ValidationError
 
 **Use Cases:**
+
 - Invalid URLs
 - Malformed data
 - Schema validation failures
 - Parameter validation errors
 
 **Example:**
+
 ```python
 from scrap_e.core.exceptions import ValidationError
 from scrap_e.core.models import ExtractionRule
@@ -190,12 +202,14 @@ except ValidationError as e:
 ::: scrap_e.core.exceptions.RateLimitError
 
 **Use Cases:**
+
 - API rate limit exceeded
 - Server throttling responses
 - Too many requests errors
 - Temporary bans
 
 **Example:**
+
 ```python
 from scrap_e.core.exceptions import RateLimitError
 import asyncio
@@ -230,21 +244,26 @@ All Scrap-E exceptions inherit common attributes from `ScraperError`:
 ### Specific Attributes
 
 #### TimeoutError
+
 - `timeout: float` - The timeout value that was exceeded
 
 #### ConnectionError
+
 - `status_code: int | None` - HTTP status code if available
 - `response_headers: dict` - Response headers if available
 
 #### ParsingError
+
 - `selector: str | None` - The CSS selector or XPath that failed
 - `element_count: int` - Number of elements found (when expecting different count)
 
 #### AuthenticationError
+
 - `status_code: int` - HTTP authentication error status code
 - `auth_method: str` - Authentication method that failed
 
 #### RateLimitError
+
 - `retry_after: int | None` - Seconds to wait before retrying
 - `limit: int | None` - Rate limit that was exceeded
 - `remaining: int | None` - Remaining requests in current window
@@ -427,6 +446,7 @@ async def test_http_error_handling():
 ## Best Practices
 
 1. **Always catch specific exceptions first**, then fall back to general ones:
+
    ```python
    try:
        result = await scraper.scrape(url)
@@ -442,6 +462,7 @@ async def test_http_error_handling():
    ```
 
 2. **Include context in error handling**:
+
    ```python
    try:
        result = await scraper.scrape(url)
@@ -456,6 +477,7 @@ async def test_http_error_handling():
    ```
 
 3. **Use structured logging for error analysis**:
+
    ```python
    logger.error(
        "scrape_error",
@@ -467,6 +489,7 @@ async def test_http_error_handling():
    ```
 
 4. **Implement retry logic for transient errors**:
+
    ```python
    from tenacity import retry, stop_after_attempt, retry_if_exception_type
 

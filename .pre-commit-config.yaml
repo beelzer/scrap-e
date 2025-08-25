@@ -24,46 +24,122 @@ repos:
         args: [--fix=lf]
       - id: debug-statements
       - id: check-ast
+      - id: detect-private-key
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
 
-  # Python code formatting with Ruff
+  # Python code formatting with Ruff (matching CI exactly)
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.12.10
     hooks:
-      # Run the linter with fixes (matching CI but with auto-fix)
+      # Run the formatter first (matching CI order)
+      - id: ruff-format
+        name: ruff format
+        types_or: [python, pyi]
+        files: ^(src|tests)/
+      # Run the linter with fixes
       - id: ruff
         name: ruff lint with auto-fix
         args: [--fix, --exit-non-zero-on-fix]
         types_or: [python, pyi]
         files: ^(src|tests)/
-      # Run the formatter
-      - id: ruff-format
-        types_or: [python, pyi]
-        files: ^(src|tests)/
 
-  # Type checking with mypy (matching CI)
+  # Type checking with mypy (matching CI exactly)
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.17.1
     hooks:
       - id: mypy
         name: mypy type checking
-        args: [--show-error-codes, --pretty, src/]
+        args: [--show-error-codes, --pretty]
         files: ^src/
-        pass_filenames: false
+        pass_filenames: true
         additional_dependencies:
-          - pydantic
-          - pydantic-settings
-          - httpx
-          - pytest
-          - pytest-asyncio
-          - playwright
+          - pydantic==2.9.2
+          - pydantic-settings==2.10.1
+          - httpx==0.28.1
+          - pytest==8.4.1
+          - pytest-asyncio==1.1.0
+          - playwright==1.54.0
           - types-requests
           - types-beautifulsoup4
-          - beautifulsoup4
+          - beautifulsoup4==4.13.4
           - lxml-stubs
           - types-PyYAML
-          - structlog
-          - click
-          - rich
+          - structlog==25.4.0
+          - click==8.2.1
+          - rich==14.1.0
+          - sqlalchemy==2.0.43
+          - redis==6.4.0
+          - pandas==2.3.2
+          - aiohttp==3.12.15
+
+  # Security scanning with bandit (matching CI)
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.6
+    hooks:
+      - id: bandit
+        name: bandit security scan
+        args: [-ll, -r, src/]
+        files: ^src/.*\.py$
+
+  # Dead code detection with vulture (matching CI)
+  - repo: https://github.com/jendrikseipp/vulture
+    rev: v2.14
+    hooks:
+      - id: vulture
+        name: vulture dead code check
+        args: [--min-confidence=80, src/]
+        files: ^src/.*\.py$
+        pass_filenames: false
+
+  # Dependency vulnerability check
+  - repo: local
+    hooks:
+      - id: pip-audit
+        name: pip-audit vulnerability scan
+        entry: pip-audit
+        language: system
+        pass_filenames: false
+        files: ^(pyproject\.toml|requirements.*\.txt)$
+        description: Check for known vulnerabilities in dependencies
+
+  # Test runner (smoke tests only for pre-commit)
+  - repo: local
+    hooks:
+      - id: pytest-quick
+        name: pytest quick smoke tests
+        entry: pytest
+        args:
+          [
+            tests/,
+            -m,
+            "not slow and not integration and not benchmark",
+            --maxfail=3,
+            -x,
+            -q,
+            --tb=short,
+          ]
+        language: system
+        pass_filenames: false
+        files: ^(src|tests)/.*\.py$
+        description: Run quick smoke tests before commit
+
+  # Coverage check (optional, can be slow)
+  - repo: local
+    hooks:
+      - id: coverage-check
+        name: coverage threshold check
+        entry: bash
+        args:
+          [
+            -c,
+            'pytest tests/ --cov=scrap_e --cov-fail-under=80 -q --tb=no || echo "Warning: Coverage below 80%"',
+          ]
+        language: system
+        pass_filenames: false
+        files: ^(src|tests)/.*\.py$
+        stages: [manual] # Only run when explicitly requested
+        description: Check test coverage meets minimum threshold
 
   # GitHub Actions workflow linting
   - repo: https://github.com/rhysd/actionlint
@@ -72,6 +148,36 @@ repos:
       - id: actionlint-docker
         args: [-color]
         files: '^\.github/workflows/.*\.ya?ml$'
+
+  # Markdown linting (for docs)
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.43.0
+    hooks:
+      - id: markdownlint
+        args: [--fix]
+        files: ^(README\.md|docs/.*\.md)$
+
+  # YAML formatting
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        types_or: [yaml]
+        exclude: ^(\.github/workflows/|mkdocs\.yml)
+
+  # Shell script linting
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        files: \.(sh|bash)$
+
+  # Dockerfile linting
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.13.1-beta
+    hooks:
+      - id: hadolint-docker
+        files: ^Dockerfile.*
 
   # Local hooks for MkDocs validation
   - repo: local
@@ -84,6 +190,7 @@ repos:
         files: '^(mkdocs\.yml|docs/.*\.(md|yml))$'
         pass_filenames: false
         description: Check that MkDocs can build without errors or warnings
+        stages: [manual] # Only run when explicitly requested
 
 # Configuration for specific hooks
 exclude: |
@@ -106,5 +213,11 @@ exclude: |
     __pycache__/.*|
     \.coverage|
     coverage\.xml|
-    uv\.lock
+    uv\.lock|
+    .*\.backup
   )$
+
+# Stages configuration
+default_stages: [pre-commit]
+# Use 'pre-commit run --hook-stage manual coverage-check' to run coverage
+# Use 'pre-commit run --hook-stage manual mkdocs-validation' to validate docs

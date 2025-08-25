@@ -52,18 +52,21 @@ scrap-e doctor
 The development environment includes:
 
 **Core Tools:**
+
 - pytest for testing
 - mypy for type checking
 - ruff for linting and formatting
 - pre-commit for git hooks
 
 **Testing Tools:**
+
 - pytest-asyncio for async testing
 - pytest-cov for coverage
 - pytest-benchmark for performance testing
 - pytest-mock for mocking
 
 **Quality Assurance:**
+
 - bandit for security scanning
 - safety for dependency vulnerability checks
 - vulture for dead code detection
@@ -329,6 +332,7 @@ def temp_config_file(tmp_path: Path) -> Path:
 ### Before Submitting
 
 1. **Create a feature branch:**
+
    ```bash
    git checkout -b feature/your-feature-name
    ```
@@ -336,11 +340,13 @@ def temp_config_file(tmp_path: Path) -> Path:
 2. **Make your changes** following code standards
 
 3. **Run the full test suite:**
+
    ```bash
    pytest
    ```
 
 4. **Run quality checks:**
+
    ```bash
    pre-commit run --all-files
    ```
@@ -352,6 +358,7 @@ def temp_config_file(tmp_path: Path) -> Path:
 ### Submitting the PR
 
 1. **Push your branch:**
+
    ```bash
    git push origin feature/your-feature-name
    ```
@@ -523,7 +530,7 @@ Include:
 
 Report security vulnerabilities privately:
 
-1. **Email**: security@scrap-e.dev (if available)
+1. **Email**: <security@scrap-e.dev> (if available)
 2. **GitHub Security**: Use GitHub's security advisory feature
 3. **Do not** open public issues for security vulnerabilities
 

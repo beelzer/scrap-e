@@ -24,7 +24,6 @@ config-variables:
   - FORCE_COLOR
   - PIP_DISABLE_PIP_VERSION_CHECK
   - PYTHONUNBUFFERED
-
 # Ignore specific errors
 # ignore:
 #   - 'workflow ".*" is not used'

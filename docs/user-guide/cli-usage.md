@@ -55,6 +55,7 @@ scrap-e scrape https://example.com -x "//h1" -x "//p[@class='content']"
 #### Examples
 
 **Extract article titles and content:**
+
 ```bash
 scrap-e scrape https://news.example.com \
   -s "h2.article-title" \
@@ -63,6 +64,7 @@ scrap-e scrape https://news.example.com \
 ```
 
 **Browser scraping with screenshot:**
+
 ```bash
 scrap-e scrape https://spa.example.com \
   --method browser \
@@ -72,6 +74,7 @@ scrap-e scrape https://spa.example.com \
 ```
 
 **Custom user agent and timeout:**
+
 ```bash
 scrap-e scrape https://api.example.com \
   --user-agent "Custom Bot 1.0" \
@@ -108,6 +111,7 @@ scrap-e batch url1 url2 url3 --method browser --concurrent 5
 #### Examples
 
 **High-concurrency scraping:**
+
 ```bash
 scrap-e batch \
   https://example.com/page1 \
@@ -118,6 +122,7 @@ scrap-e batch \
 ```
 
 **Browser batch with controlled rate:**
+
 ```bash
 scrap-e batch \
   https://spa1.com \
@@ -152,11 +157,13 @@ scrap-e sitemap https://example.com/sitemap.xml --scrape
 #### Examples
 
 **Extract sitemap URLs:**
+
 ```bash
 scrap-e sitemap https://blog.example.com/sitemap.xml -o blog_urls.txt
 ```
 
 **Full sitemap scraping:**
+
 ```bash
 scrap-e sitemap https://shop.example.com/sitemap.xml --scrape
 ```
@@ -170,6 +177,7 @@ scrap-e doctor
 ```
 
 This command checks:
+
 - Python version compatibility
 - Required packages installation
 - Browser drivers availability
@@ -177,6 +185,7 @@ This command checks:
 - Configuration validity
 
 **Sample output:**
+
 ```
 Scrap-E System Check
 
@@ -343,6 +352,7 @@ scrap-e --debug scrape https://invalid-url.com
 ```
 
 **Common exit codes:**
+
 - `0`: Success
 - `1`: General error
 - `2`: Configuration error
@@ -396,6 +406,7 @@ scrap-e sitemap https://example.com/sitemap.xml -o - | \
 ## Troubleshooting
 
 **Command not found:**
+
 ```bash
 # Ensure scrap-e is in PATH
 which scrap-e
@@ -405,6 +416,7 @@ python -m scrap_e.cli
 ```
 
 **Browser automation fails:**
+
 ```bash
 # Check browser installation
 scrap-e doctor
@@ -414,6 +426,7 @@ playwright install
 ```
 
 **Memory issues with large sites:**
+
 ```bash
 # Reduce concurrency
 scrap-e batch urls... --concurrent 2

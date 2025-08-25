@@ -1,25 +1,25 @@
-name: 'Security Scan'
-description: 'Run security scans on the codebase'
+name: "Security Scan"
+description: "Run security scans on the codebase"
 inputs:
   run-bandit:
-    description: 'Run bandit static security scan'
+    description: "Run bandit static security scan"
     required: false
-    default: 'true'
+    default: "true"
   run-safety:
-    description: 'Run safety dependency vulnerability check'
+    description: "Run safety dependency vulnerability check"
     required: false
-    default: 'true'
+    default: "true"
   run-pip-audit:
-    description: 'Run pip-audit for dependency vulnerabilities'
+    description: "Run pip-audit for dependency vulnerabilities"
     required: false
-    default: 'true'
+    default: "true"
   upload-results:
-    description: 'Upload scan results as artifacts'
+    description: "Upload scan results as artifacts"
     required: false
-    default: 'true'
+    default: "true"
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Run bandit security scan
       if: inputs.run-bandit == 'true'

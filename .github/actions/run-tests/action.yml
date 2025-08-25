@@ -1,17 +1,17 @@
-name: 'Run Tests'
-description: 'Execute test suite with pytest'
+name: "Run Tests"
+description: "Execute test suite with pytest"
 inputs:
   test-args:
-    description: 'Additional arguments to pass to pytest'
+    description: "Additional arguments to pass to pytest"
     required: false
-    default: ''
+    default: ""
   upload-coverage:
-    description: 'Whether to upload coverage reports'
+    description: "Whether to upload coverage reports"
     required: false
-    default: 'true'
+    default: "true"
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Run tests with pytest
       run: |

@@ -116,17 +116,20 @@ pip install -e ".[dev]"
 This includes:
 
 **Testing Tools:**
+
 - pytest, pytest-asyncio, pytest-cov
 - pytest-benchmark for performance testing
 - pytest-mock for mocking
 
 **Code Quality:**
+
 - ruff for linting and formatting
 - mypy for type checking
 - pre-commit for git hooks
 - bandit for security scanning
 
 **Documentation:**
+
 - mkdocs-material for documentation
 - mkdocstrings for API docs
 
@@ -209,17 +212,20 @@ scrap-e scrape https://example.com --method browser --screenshot
 ### Common Issues
 
 **Playwright not found:**
+
 ```bash
 playwright install
 ```
 
 **Permission errors on Windows:**
+
 ```bash
 # Run as administrator or use:
 pip install --user scrap-e
 ```
 
 **Browser automation fails:**
+
 ```bash
 # Install system dependencies (Linux)
 sudo apt-get install libnss3 libatk-bridge2.0-0 libxss1 libasound2

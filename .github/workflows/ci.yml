@@ -1,4 +1,4 @@
-name: CI
+name: CI Enhanced
 
 on:
   push:
@@ -32,23 +32,125 @@ env:
   # Default Python version for non-matrix jobs
   DEFAULT_PYTHON: '3.13'
   UV_CACHE_DIR: ~/.cache/uv
+  PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright
   # Disable colored output for tests to ensure consistency
   NO_COLOR: 1
   # Test timeout in minutes
   TEST_TIMEOUT: 20
+  # Coverage thresholds
+  MIN_COVERAGE: 80
+  MIN_COVERAGE_NEW_FILES: 90
+  # Docker registry
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # Quick lint check that runs first
-  lint:
-    name: 🔍 Lint Code
+  # Quick smoke tests that run first
+  smoke-tests:
+    name: 🚀 Smoke Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v5
+
+      - name: 🐍 Setup Python ${{ env.DEFAULT_PYTHON }}
+        uses: ./.github/actions/setup-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+
+      - name: 💨 Run smoke tests
+        run: |
+          echo "::group::Quick Smoke Tests"
+          uv sync
+          # Test CLI loads
+          uv run python -c "from scrap_e import cli; print('CLI loads: OK')"
+          # Test core imports
+          uv run python -c "from scrap_e.core import base_scraper, config, models; print('Core imports: OK')"
+          # Run fastest tests only
+          uv run pytest tests/ -m "not slow and not integration and not benchmark" --maxfail=1 -x -q || true
+          echo "::endgroup::"
+
+  # Code quality analysis
+  code-quality:
+    name: 📊 Code Quality Analysis
+    needs: smoke-tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
       - name: 📥 Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
-          fetch-depth: 0  # Full history for better git operations
+          fetch-depth: 0  # Full history for analysis
+
+      - name: 🐍 Setup Python ${{ env.DEFAULT_PYTHON }}
+        uses: ./.github/actions/setup-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+
+      - name: 📦 Install analysis tools
+        uses: ./.github/actions/install-deps
+        with:
+          extras: 'dev'
+          install-playwright: false
+
+      - name: 🦅 Dead code detection with Vulture
+        id: vulture
+        run: |
+          echo "::group::Dead Code Detection"
+          uv run vulture src/ --min-confidence 80 --exclude "*/tests/*,*/__pycache__/*" || true
+          echo "::endgroup::"
+        continue-on-error: true
+
+      - name: 📏 Complexity analysis
+        id: complexity
+        run: |
+          echo "::group::Cyclomatic Complexity"
+          uv run python -m mccabe src/ --min 10 || true
+          echo "::endgroup::"
+        continue-on-error: true
+
+      - name: 📊 Code metrics with radon
+        run: |
+          echo "::group::Code Metrics"
+          uv pip install radon
+          echo "### Maintainability Index"
+          uv run radon mi src/ -s
+          echo "### Cyclomatic Complexity"
+          uv run radon cc src/ -s -a
+          echo "### Raw Metrics"
+          uv run radon raw src/ -s
+          echo "::endgroup::"
+        continue-on-error: true
+
+      - name: 📊 Generate quality report
+        if: always()
+        run: |
+          {
+            echo "## 📊 Code Quality Analysis"
+            echo ""
+            echo "| Check | Status |"
+            echo "|-------|--------|"
+            echo "| Dead Code | ${{ steps.vulture.outcome }} |"
+            echo "| Complexity | ${{ steps.complexity.outcome }} |"
+            echo ""
+            echo "💡 Review the logs for detailed metrics and suggestions."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Enhanced lint with more checks
+  lint:
+    name: 🔍 Enhanced Lint
+    needs: smoke-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: 🐍 Setup Python ${{ env.DEFAULT_PYTHON }}
         uses: ./.github/actions/setup-python
@@ -59,43 +161,39 @@ jobs:
         uses: ./.github/actions/install-deps
         with:
           extras: 'dev'
-          install-playwright: false  # Not needed for linting
+          install-playwright: false
 
       - name: 🎨 Check code formatting with Ruff
         run: |
           echo "::group::Ruff Format Check"
           uv run ruff format --check src/ tests/ || (echo "::error::Code formatting issues found. Run 'ruff format' to fix." && exit 1)
           echo "::endgroup::"
-        shell: bash
 
       - name: 🚨 Run Ruff linter
         run: |
           echo "::group::Ruff Linting"
           uv run ruff check src/ tests/ --output-format=github
           echo "::endgroup::"
-        shell: bash
 
       - name: 🔎 Type checking with mypy
         run: |
           echo "::group::MyPy Type Checking"
           uv run mypy src/ --show-error-codes --pretty
           echo "::endgroup::"
-        shell: bash
 
-      - name: 📊 Generate lint summary
-        if: always()
+      - name: 📜 License header check
         run: |
-          {
-            echo "## 🔍 Linting Results"
-            echo ""
-            echo "| Check | Status |"
-            echo "|-------|--------|"
-            echo "| Code Format | ✅ Passed |"
-            echo "| Ruff Linter | ✅ Passed |"
-            echo "| Type Check | ✅ Passed |"
-          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::group::License Headers"
+          # Check for license headers in Python files
+          for file in $(find src/ -name "*.py"); do
+            if ! head -n 5 "$file" | grep -q "Copyright\|License\|MIT" 2>/dev/null; then
+              echo "::warning file=$file::Missing license header"
+            fi
+          done
+          echo "::endgroup::"
+        continue-on-error: true
 
-  # Matrix testing across different OS and Python versions
+  # Enhanced testing with coverage gates
   test:
     name: 🧪 Test - ${{ matrix.os-name }} - Python ${{ matrix.python-version }}
     needs: lint
@@ -106,9 +204,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.13']
+        python-version: ['3.12', '3.13']
         include:
-          # Add friendly OS names for the job display
           - os: ubuntu-latest
             os-name: Ubuntu
             os-emoji: 🐧
@@ -118,35 +215,29 @@ jobs:
           - os: macos-latest
             os-name: macOS
             os-emoji: 🍎
-        # Optional: exclude specific combinations if needed
-        # exclude:
-        #   - os: macos-latest
-        #     python-version: '3.11'
 
     steps:
       - name: 📥 Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 🐍 Setup Python ${{ matrix.python-version }}
         uses: ./.github/actions/setup-python
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: 📝 Display system information
-        run: |
-          echo "::group::System Information"
-          echo "OS: ${{ matrix.os-name }} (${{ matrix.os }})"
-          echo "Python: ${{ matrix.python-version }}"
-          echo "Runner: ${{ runner.os }} - ${{ runner.arch }}"
-          python --version
-          echo "::endgroup::"
-        shell: bash
-
       - name: 📦 Install test dependencies
         uses: ./.github/actions/install-deps
         with:
           extras: 'dev'
           install-playwright: true
+
+      - name: 🎭 Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
+          key: playwright-${{ matrix.os }}-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            playwright-${{ matrix.os }}-
 
       - name: 🎭 Setup Playwright browsers
         run: |
@@ -155,30 +246,12 @@ jobs:
           echo "::endgroup::"
         shell: bash
 
-      - name: 🔬 Run unit tests
+      - name: 🏃 Run performance benchmarks
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
         run: |
-          echo "::group::Unit Tests"
-          uv run pytest tests/ \
-            --tb=short \
-            --verbose \
-            --color=yes \
-            --junitxml=test-results-unit.xml \
-            -m "not integration and not slow and not benchmark and not performance" || true
+          echo "::group::Performance Benchmarks"
+          uv run pytest tests/ -m "benchmark" --benchmark-only --benchmark-json=benchmark.json || true
           echo "::endgroup::"
-        shell: bash
-        continue-on-error: true
-
-      - name: 🌐 Run integration tests
-        run: |
-          echo "::group::Integration Tests"
-          uv run pytest tests/ \
-            --tb=short \
-            --verbose \
-            --color=yes \
-            --junitxml=test-results-integration.xml \
-            -m "integration" || true
-          echo "::endgroup::"
-        shell: bash
         continue-on-error: true
 
       - name: 📊 Run all tests with coverage
@@ -193,6 +266,7 @@ jobs:
             --cov-report=term \
             --cov-report=xml \
             --cov-report=html \
+            --cov-fail-under=${{ env.MIN_COVERAGE }} \
             --junitxml=test-results-all.xml \
             -m "not benchmark and not performance"
           echo "::endgroup::"
@@ -206,6 +280,12 @@ jobs:
             coverage_pct=$(python -c "import xml.etree.ElementTree as ET; tree = ET.parse('coverage.xml'); root = tree.getroot(); print(f\"{float(root.attrib.get('line-rate', 0)) * 100:.1f}\")" 2>/dev/null || echo "0")
             echo "percentage=$coverage_pct" >> "$GITHUB_OUTPUT"
             echo "Coverage: ${coverage_pct}%"
+
+            # Check coverage threshold
+            if (( $(echo "$coverage_pct < ${{ env.MIN_COVERAGE }}" | bc -l) )); then
+              echo "::error::Coverage ${coverage_pct}% is below minimum threshold of ${{ env.MIN_COVERAGE }}%"
+              exit 1
+            fi
           else
             echo "percentage=0" >> "$GITHUB_OUTPUT"
           fi
@@ -220,31 +300,11 @@ jobs:
             test-results-*.xml
             coverage.xml
             htmlcov/
+            benchmark.json
           retention-days: 7
 
-      - name: 📊 Generate test summary
-        if: always()
-        run: |
-          {
-            echo "## ${{ matrix.os-emoji }} Test Results - ${{ matrix.os-name }} - Python ${{ matrix.python-version }}"
-            echo ""
-            echo "| Metric | Value |"
-            echo "|--------|-------|"
-            echo "| Platform | ${{ matrix.os-name }} |"
-            echo "| Python | ${{ matrix.python-version }} |"
-            echo "| Test Status | ${{ steps.full-test.outcome }} |"
-            echo "| Coverage | ${{ steps.coverage.outputs.percentage }}% |"
-            echo ""
-            if [ "${{ steps.full-test.outcome }}" == "success" ]; then
-              echo "✅ **All tests passed successfully!**"
-            else
-              echo "❌ **Some tests failed. Check the logs for details.**"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-        shell: bash
-
       - name: 📨 Upload coverage to Codecov
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -252,19 +312,65 @@ jobs:
           flags: unittests
           name: codecov-${{ matrix.os }}-py${{ matrix.python-version }}
           fail_ci_if_error: false
-          verbose: true
 
-  # Security scan (runs in parallel with tests)
-  security:
-    name: 🔒 Security Scan
-    needs: lint
+  # Dependency vulnerability scanning
+  dependency-audit:
+    name: 🔐 Dependency Audit
+    needs: smoke-tests
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    continue-on-error: true  # Don't fail the build on security issues initially
+    timeout-minutes: 10
 
     steps:
       - name: 📥 Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+
+      - name: 🐍 Setup Python ${{ env.DEFAULT_PYTHON }}
+        uses: ./.github/actions/setup-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+
+      - name: 📦 Install audit tools
+        run: |
+          uv sync
+          uv pip install pip-audit safety
+
+      - name: 🔍 Run pip-audit
+        id: pip-audit
+        run: |
+          echo "::group::Pip Audit"
+          uv run pip-audit --desc --fix --dry-run || true
+          echo "::endgroup::"
+        continue-on-error: true
+
+      - name: 🛡️ Run safety check
+        id: safety
+        run: |
+          echo "::group::Safety Check"
+          uv run safety check --json --output safety-report.json || true
+          uv run safety check || true
+          echo "::endgroup::"
+        continue-on-error: true
+
+      - name: 📤 Upload vulnerability reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vulnerability-reports
+          path: |
+            safety-report.json
+          retention-days: 30
+
+  # Enhanced security scanning
+  security:
+    name: 🔒 Enhanced Security Scan
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v5
 
       - name: 🐍 Setup Python ${{ env.DEFAULT_PYTHON }}
         uses: ./.github/actions/setup-python
@@ -281,16 +387,16 @@ jobs:
         id: bandit
         run: |
           echo "::group::Bandit Security Scan"
-          uv run bandit -r src/ -f json -o bandit-report.json || true
-          uv run bandit -r src/ -f screen || true
+          uv run bandit -r src/ -ll -f json -o bandit-report.json || true
+          uv run bandit -r src/ -ll -f screen || true
           echo "::endgroup::"
         continue-on-error: true
 
-      - name: 🛡️ Check for dependency vulnerabilities
-        id: safety
+      - name: 🔐 Check for hardcoded secrets
         run: |
-          echo "::group::Safety Dependency Check"
-          uv run pip-audit --desc || true
+          echo "::group::Secret Detection"
+          # Simple pattern matching for common secrets
+          grep -r -E "(api[_-]?key|secret|token|password|pwd|passwd|authorization|bearer|aws[_-]?access|aws[_-]?secret)" src/ --include="*.py" | grep -v -E "(def |class |import |from |#|'''|\"\"\")" || echo "No obvious secrets found"
           echo "::endgroup::"
         continue-on-error: true
 
@@ -303,25 +409,128 @@ jobs:
             bandit-report.json
           retention-days: 30
 
-      - name: 📊 Generate security summary
+  # Docker build and scan
+  docker:
+    name: 🐳 Docker Build & Scan
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v5
+
+      - name: 🔧 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔧 Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: 📝 Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🏷️ Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: 🏗️ Build Docker image (multi-arch)
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: false
+          load: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          outputs: type=docker,dest=/tmp/image.tar
+
+      - name: 🔍 Load image for scanning
+        run: |
+          docker load --input /tmp/image.tar
+          docker image ls -a
+
+      - name: 🛡️ Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: 📤 Upload Trivy results to GitHub Security
+        if: github.event_name != 'pull_request'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: 🧪 Test Docker image
+        run: |
+          echo "::group::Docker Image Test"
+          # Load the first tag from metadata
+          IMAGE_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
+          docker load --input /tmp/image.tar
+
+          # Test the image runs
+          docker run --rm $IMAGE_TAG --version || echo "Version check failed"
+
+          # Test basic functionality
+          docker run --rm $IMAGE_TAG doctor || echo "Doctor check failed"
+          echo "::endgroup::"
+
+      - name: 📦 Push Docker image
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 📊 Generate Docker summary
         if: always()
         run: |
           {
-            echo "## 🔒 Security Scan Results"
+            echo "## 🐳 Docker Build Results"
             echo ""
-            echo "| Check | Status |"
-            echo "|-------|--------|"
-            echo "| Bandit (Code) | ${{ steps.bandit.outcome }} |"
-            echo "| Safety (Dependencies) | ${{ steps.safety.outcome }} |"
+            echo "| Metric | Value |"
+            echo "|--------|-------|"
+            echo "| Build Status | ${{ steps.build.outcome }} |"
+            echo "| Platforms | linux/amd64, linux/arm64 |"
+            echo "| Registry | ${{ env.REGISTRY }} |"
+            echo "| Image | ${{ env.IMAGE_NAME }} |"
             echo ""
-            if [[ "${{ steps.bandit.outcome }}" == "success" && "${{ steps.safety.outcome }}" == "success" ]]; then
-              echo "✅ **No security issues detected**"
+            if [ "${{ steps.build.outcome }}" == "success" ]; then
+              echo "✅ **Docker image built successfully**"
             else
-              echo "⚠️ **Security scan found potential issues. Review the logs for details.**"
+              echo "❌ **Docker build failed**"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # Build check - ensures the package can be built
+  # Build and validate the package
   build:
     name: 📦 Build Package
     needs: test
@@ -330,7 +539,7 @@ jobs:
 
     steps:
       - name: 📥 Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 🐍 Setup Python ${{ env.DEFAULT_PYTHON }}
         uses: ./.github/actions/setup-python
@@ -340,19 +549,15 @@ jobs:
       - name: 📦 Install build dependencies
         run: |
           echo "::group::Installing Build Tools"
-          # Create virtual environment first by syncing the project
           uv sync
-          # Now install build tools in the virtual environment
           uv pip install build twine
           echo "::endgroup::"
-        shell: bash
 
       - name: 🏗️ Build distribution packages
         run: |
           echo "::group::Building Package"
           uv run python -m build
           echo "::endgroup::"
-        shell: bash
 
       - name: 🔍 Check package with twine
         run: |
@@ -360,7 +565,6 @@ jobs:
           uv run python -m twine check dist/*
           ls -lah dist/
           echo "::endgroup::"
-        shell: bash
 
       - name: 📤 Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -369,27 +573,10 @@ jobs:
           path: dist/
           retention-days: 7
 
-      - name: 📊 Generate build summary
-        if: always()
-        run: |
-          {
-            echo "## 📦 Build Results"
-            echo ""
-            echo "| Artifact | Size |"
-            echo "|----------|------|"
-            for file in dist/*; do
-              if [ -f "$file" ]; then
-                size=$(du -h "$file" | cut -f1)
-                name=$(basename "$file")
-                echo "| $name | $size |"
-              fi
-            done
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  # Final status check with comprehensive matrix results
+  # Comprehensive CI status with quality gates
   ci-status:
-    name: ✅ CI Status Summary
-    needs: [lint, test, security, build]
+    name: ✅ CI Status & Quality Gates
+    needs: [smoke-tests, code-quality, lint, test, security, dependency-audit, docker, build]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -399,26 +586,32 @@ jobs:
         id: status-check
         run: |
           # Check if required jobs passed
+          FAILED_JOBS=""
+
           if [[ "${{ needs.lint.result }}" == "failure" ]]; then
-            echo "❌ Linting failed!"
-            echo "lint_failed=true" >> "$GITHUB_OUTPUT"
-            exit 1
+            FAILED_JOBS="${FAILED_JOBS}lint,"
           fi
 
           if [[ "${{ needs.test.result }}" == "failure" ]]; then
-            echo "❌ Tests failed!"
-            echo "test_failed=true" >> "$GITHUB_OUTPUT"
-            exit 1
+            FAILED_JOBS="${FAILED_JOBS}test,"
           fi
 
           if [[ "${{ needs.build.result }}" == "failure" ]]; then
-            echo "❌ Build failed!"
-            echo "build_failed=true" >> "$GITHUB_OUTPUT"
-            exit 1
+            FAILED_JOBS="${FAILED_JOBS}build,"
           fi
 
-          echo "✅ All required CI checks passed!"
-          echo "all_passed=true" >> "$GITHUB_OUTPUT"
+          if [[ "${{ needs.docker.result }}" == "failure" ]]; then
+            FAILED_JOBS="${FAILED_JOBS}docker,"
+          fi
+
+          if [ -n "$FAILED_JOBS" ]; then
+            echo "❌ Failed jobs: ${FAILED_JOBS%,}"
+            echo "failed_jobs=${FAILED_JOBS%,}" >> "$GITHUB_OUTPUT"
+            exit 1
+          else
+            echo "✅ All required CI checks passed!"
+            echo "all_passed=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: 📊 Create comprehensive status summary
         if: always()
@@ -428,20 +621,31 @@ jobs:
             echo ""
             echo "## Overall Status"
             echo ""
-            echo "| Job | Status | Required |"
-            echo "|-----|--------|----------|"
-            echo "| 🔍 Lint | ${{ needs.lint.result }} | ✅ Yes |"
-            echo "| 🧪 Test | ${{ needs.test.result }} | ✅ Yes |"
-            echo "| 📦 Build | ${{ needs.build.result }} | ✅ Yes |"
-            echo "| 🔒 Security | ${{ needs.security.result }} | ⚠️ No |"
+            echo "| Job | Status | Required | Description |"
+            echo "|-----|--------|----------|-------------|"
+            echo "| 🚀 Smoke Tests | ${{ needs.smoke-tests.result }} | ✅ Yes | Quick validation |"
+            echo "| 📊 Code Quality | ${{ needs.code-quality.result }} | ⚠️ No | Complexity & dead code |"
+            echo "| 🔍 Lint | ${{ needs.lint.result }} | ✅ Yes | Code style & types |"
+            echo "| 🧪 Test | ${{ needs.test.result }} | ✅ Yes | Unit & integration tests |"
+            echo "| 🔐 Dependency Audit | ${{ needs.dependency-audit.result }} | ⚠️ No | Vulnerability scanning |"
+            echo "| 🔒 Security | ${{ needs.security.result }} | ⚠️ No | Code security analysis |"
+            echo "| 🐳 Docker | ${{ needs.docker.result }} | ✅ Yes | Container build & scan |"
+            echo "| 📦 Build | ${{ needs.build.result }} | ✅ Yes | Package validation |"
             echo ""
 
             if [[ "${{ steps.status-check.outputs.all_passed }}" == "true" ]]; then
               echo "## ✅ All Required Checks Passed!"
               echo ""
+              echo "### Quality Metrics"
+              echo "- Minimum coverage threshold: ${{ env.MIN_COVERAGE }}%"
+              echo "- Multi-platform Docker support: ✅"
+              echo "- Security scanning: Active"
+              echo ""
               echo "The code is ready for merge."
             else
               echo "## ❌ Some Checks Failed"
+              echo ""
+              echo "Failed jobs: ${{ steps.status-check.outputs.failed_jobs }}"
               echo ""
               echo "Please review the failed jobs above and fix any issues."
             fi

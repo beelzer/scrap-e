@@ -1,17 +1,17 @@
-name: 'Install Dependencies'
-description: 'Install project dependencies using uv'
+name: "Install Dependencies"
+description: "Install project dependencies using uv"
 inputs:
   extras:
     description: 'Comma-separated list of extras to install (e.g., "dev,docs")'
     required: false
-    default: ''
+    default: ""
   install-playwright:
-    description: 'Whether to install Playwright browsers'
+    description: "Whether to install Playwright browsers"
     required: false
-    default: 'true'
+    default: "true"
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Install project dependencies
       run: |

@@ -141,6 +141,7 @@ config = WebScraperConfig(
 Configure Scrap-E using environment variables with the `SCRAPER_` prefix:
 
 ### Core Settings
+
 ```bash
 # Application
 export SCRAPER_DEBUG=true
@@ -155,6 +156,7 @@ export SCRAPER_BATCH_SIZE=100
 ```
 
 ### Network Settings
+
 ```bash
 # HTTP
 export SCRAPER_DEFAULT_TIMEOUT=45
@@ -168,6 +170,7 @@ export SCRAPER_RATE_LIMIT__REQUESTS_PER_SECOND=5.0
 ```
 
 ### Browser Settings
+
 ```bash
 # Browser configuration
 export SCRAPER_BROWSER_TYPE=firefox
@@ -182,6 +185,7 @@ export SCRAPER_SCREENSHOT_QUALITY=90
 ```
 
 ### Database Settings
+
 ```bash
 # PostgreSQL
 export SCRAPER_POSTGRES_URL=postgresql://user:pass@localhost:5432/db
