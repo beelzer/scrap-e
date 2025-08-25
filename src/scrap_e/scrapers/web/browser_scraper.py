@@ -103,7 +103,7 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
                 else self.config.browser_viewport_height
             )
 
-            context_options = {
+            context_options: dict[str, Any] = {
                 "viewport": {
                     "width": viewport_width,
                     "height": viewport_height,
@@ -593,7 +593,10 @@ class BrowserScraper(PaginatedScraper[BrowserPageData, WebScraperConfig]):
             results.append(result)
 
             if result.success:
-                current_url = await self._get_next_page(current_url, result, page_number)
+                next_url = await self._get_next_page(current_url, result, page_number)
+                if next_url is None:
+                    break
+                current_url = next_url
                 page_number += 1
             else:
                 break

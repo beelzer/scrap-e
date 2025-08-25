@@ -7,7 +7,7 @@ default_language_version:
 repos:
   # General fixes
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
@@ -27,19 +27,47 @@ repos:
 
   # Python code formatting with Ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.7.3
+    rev: v0.12.10
     hooks:
-      # Run the linter
+      # Run the linter with fixes (matching CI but with auto-fix)
       - id: ruff
+        name: ruff lint with auto-fix
         args: [--fix, --exit-non-zero-on-fix]
         types_or: [python, pyi]
+        files: ^(src|tests)/
       # Run the formatter
       - id: ruff-format
         types_or: [python, pyi]
+        files: ^(src|tests)/
+
+  # Type checking with mypy (matching CI)
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.17.1
+    hooks:
+      - id: mypy
+        name: mypy type checking
+        args: [--show-error-codes, --pretty, src/]
+        files: ^src/
+        pass_filenames: false
+        additional_dependencies:
+          - pydantic
+          - pydantic-settings
+          - httpx
+          - pytest
+          - pytest-asyncio
+          - playwright
+          - types-requests
+          - types-beautifulsoup4
+          - beautifulsoup4
+          - lxml-stubs
+          - types-PyYAML
+          - structlog
+          - click
+          - rich
 
   # GitHub Actions workflow linting
   - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.4
+    rev: v1.7.7
     hooks:
       - id: actionlint-docker
         args: [-color]

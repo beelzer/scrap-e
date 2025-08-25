@@ -1,6 +1,8 @@
 """HTTP-based web scraper using httpx."""
 
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from types import TracebackType
 from typing import Any
 from urllib.parse import urljoin
 
@@ -403,7 +405,10 @@ class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
                 ):
                     break
 
-                current_url = await self._get_next_page(current_url, result, page_number)
+                next_url = await self._get_next_page(current_url, result, page_number)
+                if next_url is None:
+                    break
+                current_url = next_url
                 page_number += 1
             else:
                 break
@@ -428,7 +433,10 @@ class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
 
             # Get next page
             if result.success:
-                current_url = await self._get_next_page(current_url, result, page_number)
+                next_url = await self._get_next_page(current_url, result, page_number)
+                if next_url is None:
+                    break
+                current_url = next_url
                 page_number += 1
             else:
                 break
@@ -463,16 +471,26 @@ class HttpScraper(PaginatedScraper[WebPageData, WebScraperConfig]):
 
         return results
 
-    def session(self):
+    @asynccontextmanager
+    async def session(self) -> AsyncIterator["HttpScraper"]:
         """Create a session context for multiple requests."""
-        return self
+        await self._initialize()
+        try:
+            yield self
+        finally:
+            await self._cleanup()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "HttpScraper":
         """Enter the session context."""
         await self._initialize()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Exit the session context."""
         await self._cleanup()
 
